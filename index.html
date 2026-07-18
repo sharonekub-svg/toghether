@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A0D18" />
+  <title>תוגדאו — כרטיס יד שנייה. ביטחון יד ראשונה.</title>
+  <meta name="description" content="תוגדאו: קנייה ומכירה של כרטיסים יד שנייה במחיר המקורי בלבד, עם כסף בנאמנות והחזר מלא. בלי עוקצים." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Secular+One&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎫%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Top bar -->
+    <header class="topbar">
+      <a href="#/" class="brand">
+        <span class="brand-glyph">🎫</span>
+        <span class="brand-name">תוגדאו</span>
+      </a>
+      <div class="topbar-actions">
+        <button class="icon-btn" id="btn-how" title="איך זה עובד">?</button>
+        <a href="#/profile" class="avatar" title="הפרופיל שלי">י</a>
+      </div>
+    </header>
+
+    <!-- Trust strip -->
+    <div class="trust-strip">
+      <span>🔒</span>
+      <span>הכסף שלך נשמר בנאמנות עד אחרי האירוע — סורבת בכניסה? החזר מלא.</span>
+    </div>
+
+    <!-- Main view (rendered by router) -->
+    <main id="view" class="view"></main>
+
+    <!-- Bottom navigation -->
+    <nav class="bottomnav">
+      <a href="#/" data-nav="home" class="nav-item">
+        <span class="nav-ico">🏠</span><span>ראשי</span>
+      </a>
+      <a href="#/search" data-nav="search" class="nav-item">
+        <span class="nav-ico">🔍</span><span>חיפוש</span>
+      </a>
+      <a href="#/sell" data-nav="sell" class="nav-item nav-sell">
+        <span class="nav-sell-btn">+</span><span>מכירה</span>
+      </a>
+      <a href="#/wallet" data-nav="wallet" class="nav-item">
+        <span class="nav-ico">👛</span><span>הארנק</span>
+      </a>
+      <a href="#/profile" data-nav="profile" class="nav-item">
+        <span class="nav-ico">👤</span><span>פרופיל</span>
+      </a>
+    </nav>
+
+    <!-- Toast + modal containers -->
+    <div id="toasts" class="toasts"></div>
+    <div id="modal-root"></div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
