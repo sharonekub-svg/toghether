@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#0A0D18" />
-  <title>תוגדאו — כרטיס יד שנייה. ביטחון יד ראשונה.</title>
-  <meta name="description" content="תוגדאו: קנייה ומכירה של כרטיסים יד שנייה במחיר המקורי בלבד, עם כסף בנאמנות והחזר מלא. בלי עוקצים." />
+  <meta name="theme-color" content="#0E1220" />
+  <title>תוגדאו — הבניין מזמין ביחד</title>
+  <meta name="description" content="תוגדאו: הזמנות משותפות לשכנים בבניין. מתאחדים על סל אחד, מפצלים את המשלוח, משלמים כל אחד על שלו — והכסף מוחזק עד שהחבילה אצלכם." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800;900&family=Secular+One&display=swap" rel="stylesheet" />
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🎫%3C/text%3E%3C/svg%3E" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🏢%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -17,19 +17,19 @@
     <!-- Top bar -->
     <header class="topbar">
       <a href="#/" class="brand">
-        <span class="brand-glyph">🎫</span>
+        <span class="brand-glyph">🏢</span>
         <span class="brand-name">תוגדאו</span>
       </a>
       <div class="topbar-actions">
         <button class="icon-btn" id="btn-how" title="איך זה עובד">?</button>
-        <a href="#/profile" class="avatar" title="הפרופיל שלי">י</a>
+        <a href="#/profile" class="avatar" id="topbar-avatar" title="הפרופיל שלי">ש</a>
       </div>
     </header>
 
-    <!-- Trust strip -->
-    <div class="trust-strip">
-      <span>🔒</span>
-      <span>הכסף שלך נשמר בנאמנות עד אחרי האירוע — סורבת בכניסה? החזר מלא.</span>
+    <!-- Building strip -->
+    <div class="building-strip" id="building-strip">
+      <span>📍</span>
+      <span id="building-strip-text">רוטשילד 12, תל אביב · 14 שכנים בתוגדאו</span>
     </div>
 
     <!-- Main view (rendered by router) -->
@@ -38,16 +38,16 @@
     <!-- Bottom navigation -->
     <nav class="bottomnav">
       <a href="#/" data-nav="home" class="nav-item">
-        <span class="nav-ico">🏠</span><span>ראשי</span>
+        <span class="nav-ico">🏠</span><span>הבניין</span>
       </a>
-      <a href="#/search" data-nav="search" class="nav-item">
-        <span class="nav-ico">🔍</span><span>חיפוש</span>
+      <a href="#/stores" data-nav="stores" class="nav-item">
+        <span class="nav-ico">🛍️</span><span>חנויות</span>
       </a>
-      <a href="#/sell" data-nav="sell" class="nav-item nav-sell">
-        <span class="nav-sell-btn">+</span><span>מכירה</span>
+      <a href="#/new" data-nav="new" class="nav-item nav-new">
+        <span class="nav-new-btn">+</span><span>הזמנה</span>
       </a>
-      <a href="#/wallet" data-nav="wallet" class="nav-item">
-        <span class="nav-ico">👛</span><span>הארנק</span>
+      <a href="#/orders" data-nav="orders" class="nav-item">
+        <span class="nav-ico">📦</span><span>ההזמנות</span>
       </a>
       <a href="#/profile" data-nav="profile" class="nav-item">
         <span class="nav-ico">👤</span><span>פרופיל</span>

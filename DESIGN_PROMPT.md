@@ -1,4 +1,4 @@
-# פרומט דיזיין — אפליקציית תוגדאו 🎫
+# פרומט דיזיין — אפליקציית תוגדאו 🏢
 
 זה הפרומט שמכניסים לכלי דיזיין AI (Figma Make / Stitch / v0 / Lovable / UXPilot וכו').
 מצרפים אליו את סקיצת העיצוב / רפרנס שלך, מדביקים את הפרומט — ומקבלים עיצוב מלא.
@@ -11,79 +11,94 @@
 ## The Master Prompt (copy from here ⬇️)
 
 ```
-Design a mobile app called "Togdao" (Hebrew: תוגדאו) — a safe, face-value
-second-hand ticket marketplace for Israel (concerts, festivals, sports,
-theater, stand-up). The entire UI is in HEBREW with full RTL layout —
-this is critical: navigation flows right-to-left, icons and chevrons are
-mirrored, numbers and prices stay LTR (₪350).
+Design a mobile app called "Togdao" (Hebrew: תוגדאו) — a group-ordering
+app for the neighbors in an apartment building in Israel. The entire UI
+is in HEBREW with full RTL layout — this is critical: navigation flows
+right-to-left, icons and chevrons are mirrored, numbers and prices stay
+LTR (₪129).
 
 THE PRODUCT IN ONE LINE
-"Second-hand ticket. First-hand security." Buyers pay at most the
-printed face value (Israeli law forbids more); the money is held in
-escrow and released to the seller only two days AFTER the event. If the
-buyer is refused at the gate — one tap, full refund. Scamming simply
-doesn't pay here.
+"The building orders together." One neighbor opens a shared cart from a
+store (H&M, Zara, Amazon, the supermarket); every neighbor adds their own
+items to the same basket; delivery is split between everyone (and becomes
+free above a goal); each person pays only for their own items, and the
+money is held in escrow until the package arrives at the building and the
+order's founder confirms delivery.
 
 BRAND & MOOD
-- Night-show atmosphere: deep midnight indigo background (#0A0D18),
-  stage-spotlight gold as the primary accent (#F6C453 → #F09819
-  gradient), electric violet secondary (#8C7BFF), trust green for
-  "verified" (#3DDC97), alert coral for disputes (#FF6B6B).
-- Feels: premium, warm, trustworthy, a little festive — like holding a
-  golden ticket outside the venue. NOT corporate, NOT crypto, NOT neon
-  cyberpunk.
-- Ticket-stub motifs everywhere: perforated dashed dividers, notched
-  card corners, barcode textures used decoratively.
+- "Neon neighborhood at night": deep ink-blue background (#0E1220),
+  electric-lime as the primary accent (#C6F432 → #9FD41A gradient),
+  friendly violet secondary (#8C7BFF), mint green for success/escrow
+  (#3DDC97), coral for the live countdown/alerts (#FF7A6B), warm amber
+  for lit windows (#FFC357).
+- Feels: warm, communal, a little playful — like a lit-up apartment
+  building where everyone's chipping in together. NOT corporate, NOT
+  crypto, NOT a cold delivery app.
+- Signature motif: a grid of small "apartment windows", a few lit in
+  lime/amber, used in the header and empty states. Rounded, glassy cards.
 - Typography: Hebrew-first. Heebo for UI text, a strong rounded Hebrew
   display font (e.g. Secular One) for the logo and big numbers.
 - Dark mode is the default and hero look; provide a light variant.
 
-KEY TRUST ELEMENTS (must be visually loud)
-1. Escrow indicator — a small padlock + "הכסף בנאמנות" status that
-   follows the money everywhere (checkout, wallet, seller payout).
-2. Two badges: "SAFE 🔒" (gold outline) = money held in escrow;
-   "מאומת ✔" (green) = old barcode cancelled, new one issued — 100%
-   scam-proof. The green badge is the brand's crown jewel.
-3. Price-cap UI — sellers pick a price on a slider that is HARD-CAPPED
-   at face value, with the cap clearly drawn as a locked wall.
-4. Seller trust: star score, verified-ID checkmarks, sales count.
+KEY MECHANICS (must be visually loud)
+1. Shared free-shipping progress bar — a lime bar filling toward the
+   free-shipping goal (₪400); every item a neighbor adds pushes it up.
+   Label: "עוד ₪X למשלוח חינם" → "🎉 משלוח חינם הושג!".
+2. Live cart timer — a big tabular-digit countdown (MM:SS) in coral on
+   the order page; while it runs, neighbors can still join. On zero the
+   cart locks and the store starts fulfilling.
+3. Participant avatars — overlapping colored circles of the neighbors who
+   joined, with "N שכנים · M פריטים".
+4. "My share" split card — my items + my equal share of delivery, with a
+   loud line "משלמים רק על מה ששלכם — לעולם לא על של השכנים".
+5. Escrow explainer — a 3-step vertical timeline: pay (authorized/held)
+   → store ships → founder confirms delivery → money released. If it
+   never arrives, the charge is auto-cancelled.
+6. Private items — a neighbor can mark an item private (🙈); others see
+   "פריט פרטי · •••" instead of the product.
 
 SCREENS TO DESIGN (mobile, 390×844)
-1. Home — hero tagline, search, category chips (הופעות, פסטיבלים,
-   ספורט, תיאטרון, סטנדאפ), horizontally scrolling "SOLD OUT" hot
-   events, fresh listings feed as ticket-stub cards.
-2. Event page — event hero, face-price range pill, listings list
-   (seat, seller trust, SAFE/VERIFIED badge, price vs face value),
-   and a waitlist card ("347 people waiting — get a 10-minute
-   priority window when a ticket appears").
-3. Checkout — ticket price and service fee as two separate lines
-   (legal requirement), escrow explainer as a 3-step vertical
-   timeline, payment methods (Apple Pay, Google Pay, card, Bit),
-   big gold pay button.
-4. Sell flow (4 steps with progress bar) — pick event from catalog →
-   upload PDF/pkpass into an encrypted "vault" (drag-drop zone) →
-   OCR result card (seat, face value, barcode hash, duplicate check
-   ✓) → price slider capped at face → KYC checklist → publish.
-5. Wallet — tabs: קניתי / מכרתי / התראות. Bought ticket: QR hidden
-   behind a "reveals on event day" lock, escrow status, a red
-   "סורבתי בכניסה" dispute button. Sold ticket: escrow → payout
-   timeline. Alerts: waitlist match modal with a 10:00 countdown.
-6. Dispute sheet — bottom sheet with auto-verified location + time,
-   escrow amount ready to refund, one big refund button.
-7. Profile — avatar, trust score, KYC checklist (phone / ID / bank),
-   stats, notification toggles (WhatsApp!).
-8. "How it works" bottom sheet — 3 numbered steps + an honesty note:
-   "no app can x-ray a barcode — but with us, scamming doesn't pay."
+1. Home ("הבניין") — building header with the lit-windows motif, stats
+   row (orders completed / saved / neighbors), an "open now — join?"
+   group-order card with progress bar + avatars + timer, a big "פתיחת
+   הזמנה חדשה" button, and a live "קורה בבניין" activity feed.
+2. Stores ("חנויות") — list of store cards (logo tile, tagline, ETA), a
+   green "יש הזמנה פתוחה של דנה — קופצים עליה!" hint when one exists.
+3. Store catalog — category chips, 2-column product grid with emoji
+   tiles, price + struck-through compare price, stock pill (במלאי / מלאי
+   נמוך / אחרונים).
+4. Add-item bottom sheet — size chips, color chips, quantity stepper,
+   a "private item 🙈" toggle, and "הוספה לסל של הבניין · ₪X".
+5. Order page — store header, big countdown, horizontal status timeline
+   (🧺 איסוף → 🏬 התקבלה → 📦 באריזה → 🚚 מוכנה → 🏠 נמסרה), progress
+   bar, invite card with a 4-digit join code + WhatsApp/copy buttons,
+   the shared items list (mine tagged "שלי", others' private items
+   masked), a "my share" split card, and a lime pay button. Founder-only
+   controls: extend timer, lock now, and "החבילה הגיעה — אישור מסירה
+   ושחרור הכסף".
+6. Pay bottom sheet — split summary + escrow timeline + "אישור תשלום".
+7. My orders — tabs פעילות / הושלמו, order cards.
+8. Join screen — "דנה מזמינה אותך להזמנה מ-H&M", timer, progress, big
+   "מצטרפ/ת!" button (reached via an invite code / deep link).
+9. Store dashboard (merchant demo) — the building's locked order as ONE
+   consolidated picking list with quantities, and status-advance buttons.
+10. Profile — avatar, building + apartment, stats, payment method, a
+    "מסך החנות (דמו)" link, notification toggles (WhatsApp!), legal.
+11. "How it works" bottom sheet — 3 numbered steps + a safety note about
+    escrow (no neighbor ever touches another's money; Stripe holds it
+    until delivery).
 
 COMPONENTS
-Bottom nav with a raised gold circular "sell" button in the center;
-toasts styled like mini ticket stubs; bottom sheets with grab handle;
-countdown timer in big tabular digits; empty states with a friendly
-emoji and one-line CTA.
+Bottom nav (הבניין / חנויות / +הזמנה / ההזמנות / פרופיל) with a raised
+lime circular "+" order button in the center; toast notifications;
+bottom sheets with a grab handle; the lit-windows building glyph;
+switches in lime; empty states with a friendly emoji and one-line CTA.
 
-Make it beautiful, dense with real Hebrew content (no lorem ipsum),
-with realistic Israeli events: עומר אדם בפארק הירקון, נועה קירל בהיכל
-מנורה, דרבי תל אביב, פסטיבל תמר במצדה.
+Make it beautiful, dense with real Hebrew content (no lorem ipsum), with
+realistic Israeli neighbors (דנה מדירה 5, יוסי מהוועד, מיכל מדירה 12) and
+a real building address (רוטשילד 12, תל אביב). Show a live feeling: "אבי
+מקומה 3 הצטרף", "מיכל הוסיפה חולצה לסל", the timer ticking, the bar
+filling.
 ```
 
 ---
@@ -91,22 +106,26 @@ with realistic Israeli events: עומר אדם בפארק הירקון, נועה
 ## גרסה מקוצרת בעברית (אם הכלי מבין עברית)
 
 ```
-עצב אפליקציית מובייל בשם "תוגדאו" — שוק כרטיסים יד-שנייה בטוח לישראל.
-עברית מלאה, RTL. הרעיון: קונים כרטיס במחיר הנקוב בלבד, הכסף בנאמנות עד
-יומיים אחרי האירוע, סורבת בכניסה = החזר מלא בלחיצה אחת.
+עצב אפליקציית מובייל בשם "תוגדאו" — הזמנות משותפות לשכני בניין בישראל.
+עברית מלאה, RTL. הרעיון: שכן פותח סל משותף מחנות (H&M, זארה, אמזון,
+סופר), כל שכן מוסיף את הפריטים שלו לאותו סל, המשלוח מתחלק בין כולם
+(וחינם מעל ₪400), כל אחד משלם רק על שלו, והכסף מוחזק באסקרו עד שהחבילה
+מגיעה לבניין ופותח ההזמנה מאשר מסירה.
 
-סגנון: לילה של הופעה — רקע אינדיגו כהה (#0A0D18), זהב זרקורים כמבטא
-ראשי (#F6C453), סגול חשמלי משני (#8C7BFF), ירוק אמון לתג "מאומת"
-(#3DDC97). מוטיב כרטיס תלוש: קווי ניקוב מקווקווים, פינות עם חריצים,
-טקסטורת ברקוד. פונט Heebo, לוגו ב-Secular One. דארק מוד כברירת מחדל.
+סגנון: "שכונה בניאון בלילה" — רקע כחול-דיו כהה (#0E1220), ליים חשמלי
+כמבטא ראשי (#C6F432), סגול ידידותי משני (#8C7BFF), ירוק מנטה להצלחה
+ואסקרו (#3DDC97), אלמוג לטיימר החי (#FF7A6B), ענבר לחלונות מוארים
+(#FFC357). מוטיב חתימה: רשת חלונות דירה קטנים, כמה מוארים. פונט Heebo,
+לוגו ב-Secular One. דארק מוד כברירת מחדל.
 
-מסכים: בית (חיפוש, צ'יפים, אירועי SOLD OUT, פיד כרטיסים), עמוד אירוע
-(רשימות + רשימת המתנה עם חלון 10 דקות), צ'קאאוט (מחיר + דמי שירות
-בשתי שורות נפרדות, ציר זמן נאמנות), מכירה ב-4 שלבים (בחירת אירוע,
-העלאה לכספת, OCR, סליידר מחיר נעול עד הנקוב, KYC), ארנק (קניתי/מכרתי/
-התראות, QR נעול עד יום האירוע, כפתור "סורבתי בכניסה"), פרופיל עם ציון
-אמון, ו"איך זה עובד". תוכן אמיתי בעברית — עומר אדם בפארק הירקון, דרבי
-תל אביב, פסטיבל תמר.
+מסכים: בית "הבניין" (מוטיב חלונות, סטטיסטיקות, הזמנה פתוחה עם בר
+התקדמות + אווטארים + טיימר, פיד "קורה בבניין"), חנויות, קטלוג חנות (צ'יפים
++ גריד מוצרים), שיטסט הוספת פריט (מידה/צבע/כמות + טוגל "פריט פרטי"),
+עמוד הזמנה (טיימר גדול, ציר סטטוס אופקי, קוד הצטרפות + שיתוף וואטסאפ,
+רשימת סל משותף, כרטיס "החלק שלי", כפתור תשלום, וכפתורי מנהל: הארכת טיימר
+ואישור מסירה), שיטסט תשלום עם ציר אסקרו, ההזמנות שלי, מסך הצטרפות דרך
+קוד, מסך חנות (דמו) עם רשימת ליקוט מרוכזת, ופרופיל. תוכן אמיתי בעברית —
+דנה מדירה 5, יוסי מהוועד, רוטשילד 12 תל אביב, טיימר שרץ ובר שמתמלא.
 ```
 
 ---

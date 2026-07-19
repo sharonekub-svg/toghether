@@ -1,72 +1,138 @@
 /* ============================================================
    תוגדאו — app logic
-   SPA with hash routing. Runs on demo data out of the box;
-   switches to Supabase automatically when config.js has keys.
+   Group ordering for a building's neighbors: one shared cart,
+   split delivery, escrow payments. SPA with hash routing.
+   Runs on demo data + localStorage out of the box; switches to
+   Supabase automatically when config.js has keys.
    ============================================================ */
 
 "use strict";
 
-/* ---------------- Demo data ---------------- */
+/* ---------------- Constants ---------------- */
 
-const CATEGORIES = [
-  { id: "all", label: "הכול" },
-  { id: "concert", label: "הופעות" },
-  { id: "festival", label: "פסטיבלים" },
-  { id: "sport", label: "ספורט" },
-  { id: "theater", label: "תיאטרון" },
-  { id: "standup", label: "סטנדאפ" },
+const DELIVERY_FEE = 25;
+const FREE_SHIPPING_GOAL = 400;
+const BUILDING = { address: "רוטשילד 12, תל אביב", neighbors: 14 };
+
+const STORES = [
+  { id: "hm", name: "H&M", logo: "H&M", accent: "#d4001a", emoji: "👕", tagline: "אופנה יומיומית לכל הבניין", eta: "טיפול חנות 35–50 דק׳" },
+  { id: "zara", name: "ZARA", logo: "ZARA", accent: "#16161a", emoji: "🧥", tagline: "ארון עירוני, משלוח אחד משותף", eta: "טיפול חנות 40–55 דק׳" },
+  { id: "amazon", name: "Amazon", logo: "a", accent: "#ff9900", emoji: "📦", tagline: "בסיסיים ומוצרי בית בלינק אחד", eta: "שילוח מהיר בסגנון Prime" },
+  { id: "shufersal", name: "שופרסל Online", logo: "שופ", accent: "#e4002b", emoji: "🛒", tagline: "הקניות של כולם, נהג אחד", eta: "חלון משלוח 60–90 דק׳" },
 ];
 
-const EVENTS = [
-  { id: "omer-adam", title: "עומר אדם", venue: "פארק הירקון, תל אביב", date: "2026-08-15T21:00", category: "concert", emoji: "🎤", faceMin: 350, faceMax: 480, soldOut: true, waitlist: 347 },
-  { id: "noa-kirel", title: "נועה קירל", venue: "היכל מנורה מבטחים, תל אביב", date: "2026-09-02T20:30", category: "concert", emoji: "⭐", faceMin: 280, faceMax: 390, soldOut: true, waitlist: 212 },
-  { id: "shlomo-artzi", title: "שלמה ארצי", venue: "האמפי קיסריה", date: "2026-08-25T20:00", category: "concert", emoji: "🎸", faceMin: 420, faceMax: 420, soldOut: true, waitlist: 158 },
-  { id: "derby", title: "מכבי ת\"א – הפועל ת\"א (דרבי)", venue: "היכל מנורה מבטחים", date: "2026-08-22T19:00", category: "sport", emoji: "🏀", faceMin: 120, faceMax: 350, soldOut: true, waitlist: 96 },
-  { id: "tamar", title: "פסטיבל תמר", venue: "מצדה, ים המלח", date: "2026-09-28T22:00", category: "festival", emoji: "🌵", faceMin: 260, faceMax: 260, soldOut: false, waitlist: 0 },
-  { id: "infected", title: "Infected Mushroom", venue: "לייב פארק, ראשון לציון", date: "2026-09-12T21:30", category: "concert", emoji: "🍄", faceMin: 290, faceMax: 290, soldOut: true, waitlist: 74 },
-  { id: "hasson", title: "שחר חסון", venue: "זאפה, תל אביב", date: "2026-08-08T21:00", category: "standup", emoji: "🎙️", faceMin: 160, faceMax: 160, soldOut: true, waitlist: 41 },
-  { id: "cameri", title: "מקבת — הקאמרי", venue: "תיאטרון הקאמרי, תל אביב", date: "2026-09-01T20:00", category: "theater", emoji: "🎭", faceMin: 190, faceMax: 240, soldOut: false, waitlist: 0 },
+const PRODUCTS = [
+  { id: "hm-linen", store: "hm", name: "חולצת פשתן מכופתרת", price: 119, compare: 139, emoji: "👔", cat: "חולצות", sizes: ["XS", "S", "M", "L", "XL"], colors: ["לבן", "מרווה", "תכלת"], stock: "ok" },
+  { id: "hm-jeans", store: "hm", name: "ג׳ינס Wide High", price: 159, compare: 189, emoji: "👖", cat: "מכנסיים", sizes: ["34", "36", "38", "40"], colors: ["כחול", "שחור שטוף"], stock: "low" },
+  { id: "hm-dress", store: "hm", name: "שמלת ריב מידי", price: 129, compare: 149, emoji: "👗", cat: "שמלות", sizes: ["XS", "S", "M", "L"], colors: ["שחור", "קרם", "חום"], stock: "ok" },
+  { id: "hm-tee", store: "hm", name: "טי-שירט כותנה פרימיום", price: 49, compare: 59, emoji: "👕", cat: "חולצות", sizes: ["S", "M", "L", "XL"], colors: ["לבן", "שחור", "נייבי"], stock: "ok" },
+  { id: "hm-bag", store: "hm", name: "תיק קרוסבודי מרופד", price: 99, compare: 119, emoji: "👜", cat: "אקססוריז", sizes: ["One size"], colors: ["שחור", "בז׳", "בורדו"], stock: "last" },
+  { id: "za-tee", store: "zara", name: "טי-שירט Heavy בייסיק", price: 89, compare: 109, emoji: "👕", cat: "חולצות", sizes: ["S", "M", "L", "XL"], colors: ["שחור", "לבן", "טופ"], stock: "ok" },
+  { id: "za-pants", store: "zara", name: "מכנסיים מחויטים ישרים", price: 229, compare: 259, emoji: "👖", cat: "מכנסיים", sizes: ["36", "38", "40", "42"], colors: ["שחור", "פחם", "חול"], stock: "low" },
+  { id: "za-slip", store: "zara", name: "שמלת סאטן סליפ", price: 249, compare: 279, emoji: "👗", cat: "שמלות", sizes: ["XS", "S", "M", "L"], colors: ["שנהב", "שחור", "ירוק עמוק"], stock: "ok" },
+  { id: "za-jacket", store: "zara", name: "ז׳קט ג׳ינס קרופ", price: 299, compare: 329, emoji: "🧥", cat: "חדש", sizes: ["S", "M", "L", "XL"], colors: ["כחול ביניים", "אקרו"], stock: "last" },
+  { id: "am-tee", store: "amazon", name: "טי יומיומי Essential", price: 69, compare: 79, emoji: "👕", cat: "חולצות", sizes: ["S", "M", "L", "XL"], colors: ["שחור", "לבן", "אפור"], stock: "ok" },
+  { id: "am-hoodie", store: "amazon", name: "קפוצ׳ון פליז רך", price: 129, compare: 149, emoji: "🧥", cat: "חדש", sizes: ["S", "M", "L", "XL"], colors: ["שחור", "שיבולת", "נייבי"], stock: "low" },
+  { id: "am-socks", store: "amazon", name: "שלישיית גרביים", price: 39, compare: 49, emoji: "🧦", cat: "אקססוריז", sizes: ["One size"], colors: ["לבן", "שחור"], stock: "ok" },
+  { id: "sh-milk", store: "shufersal", name: "חלב 3% · שישייה", price: 38, compare: 42, emoji: "🥛", cat: "חלב וביצים", sizes: ["שישייה"], colors: ["רגיל"], stock: "ok" },
+  { id: "sh-eggs", store: "shufersal", name: "ביצים L · תבנית 12", price: 16, compare: 18, emoji: "🥚", cat: "חלב וביצים", sizes: ["12 יח׳"], colors: ["חופש"], stock: "ok" },
+  { id: "sh-veg", store: "shufersal", name: "סלסלת ירקות השבוע", price: 74, compare: 89, emoji: "🥦", cat: "פירות וירקות", sizes: ["סלסלה"], colors: ["עונתי"], stock: "low" },
+  { id: "sh-clean", store: "shufersal", name: "ערכת ניקוי לבית", price: 59, compare: 72, emoji: "🧼", cat: "ניקיון", sizes: ["ערכה"], colors: ["רגיל"], stock: "ok" },
 ];
 
-const LISTINGS = [
-  { id: "l1", eventId: "omer-adam", seat: "גוש 12, שורה 8, מושבים 14-15", face: 350, price: 350, qty: 2, level: "verified", seller: "יואב מ.", trust: 5, sales: 12 },
-  { id: "l2", eventId: "omer-adam", seat: "דשא — כניסה מהירה", face: 350, price: 320, qty: 1, level: "safe", seller: "מיכל ר.", trust: 4, sales: 3 },
-  { id: "l3", eventId: "omer-adam", seat: "טריבונה מערבית, שורה 22", face: 480, price: 480, qty: 2, level: "safe", seller: "דניאל כ.", trust: 5, sales: 8 },
-  { id: "l4", eventId: "derby", seat: "יציע 5, שורה 3", face: 220, price: 200, qty: 1, level: "safe", seller: "עידו ב.", trust: 4, sales: 5 },
-  { id: "l5", eventId: "noa-kirel", seat: "פארטר עמידה", face: 280, price: 280, qty: 2, level: "verified", seller: "שיר ל.", trust: 5, sales: 21 },
-  { id: "l6", eventId: "hasson", seat: "שולחן 14, זוג", face: 160, price: 145, qty: 2, level: "safe", seller: "רועי א.", trust: 3, sales: 1 },
-  { id: "l7", eventId: "infected", seat: "כניסה כללית", face: 290, price: 290, qty: 1, level: "safe", seller: "טל ש.", trust: 4, sales: 6 },
+const NEIGHBORS = [
+  { id: "dana", name: "דנה", apt: "דירה 5" },
+  { id: "avi", name: "אבי", apt: "קומה 3" },
+  { id: "michal", name: "מיכל", apt: "דירה 12" },
+  { id: "yossi", name: "יוסי", apt: "ועד הבית" },
+  { id: "rina", name: "רינה", apt: "דירה 2" },
 ];
 
-const MY_TICKETS = [
-  {
-    id: "t1", type: "bought", eventId: "omer-adam",
-    seat: "גוש 12, שורה 8, מושב 14",
-    paid: 350, fee: 26, level: "verified",
-    status: "escrow_held",
-    statusText: "הכרטיס בארנק · הכסף בנאמנות עד יומיים אחרי המופע",
-  },
-  {
-    id: "t2", type: "sold", eventId: "derby",
-    seat: "יציע 7, שורה 12, מושב 4",
-    price: 180, buyer: "נ׳ מפתח תקווה",
-    status: "awaiting_payout",
-    statusText: "נמכר! התשלום ישוחרר אליך יומיים אחרי המשחק",
-  },
-];
+const STATUS_FLOW = ["collecting", "accepted", "packing", "ready", "shipped"];
+const STATUS_LABEL = {
+  collecting: "איסוף פריטים",
+  accepted: "התקבלה בחנות",
+  packing: "באריזה",
+  ready: "מוכנה למשלוח",
+  shipped: "נמסרה לבניין",
+};
 
-const MY_WAITLISTS = [
-  { eventId: "noa-kirel", joined: "2026-07-10", position: 18 },
-];
+/* ---------------- State (localStorage) ---------------- */
 
-const FEE_RATE = 0.075;
-const FEE_MIN = 15;
-const fee = (price) => Math.max(FEE_MIN, Math.round(price * FEE_RATE));
+const LS_KEY = "togdao-v1";
+const now = () => Date.now();
+
+function seedState() {
+  const t = now();
+  return {
+    user: { id: "me", name: "שרון", apt: "דירה 8" },
+    onboarded: false,
+    settings: { whatsapp: true, waitlist: true, marketing: false },
+    orders: [
+      {
+        id: "TG-4821", store: "hm", status: "collecting", code: "4821",
+        createdBy: "dana", createdAt: t - 8 * 60000, closesAt: t + 22 * 60000,
+        address: BUILDING.address,
+        participants: [{ id: "dana" }, { id: "rina" }],
+        items: [
+          { id: "i1", productId: "hm-dress", by: "dana", size: "M", color: "שחור", qty: 1, private: false },
+          { id: "i2", productId: "hm-tee", by: "rina", size: "L", color: "לבן", qty: 2, private: false },
+          { id: "i3", productId: "hm-bag", by: "dana", size: "One size", color: "בז׳", qty: 1, private: true },
+        ],
+        paid: { dana: true }, deliveryConfirmed: false,
+      },
+      {
+        id: "TG-3117", store: "zara", status: "packing", code: "3117",
+        createdBy: "yossi", createdAt: t - 26 * 3600000, closesAt: t - 25 * 3600000,
+        address: BUILDING.address,
+        participants: [{ id: "yossi" }, { id: "me" }, { id: "michal" }],
+        items: [
+          { id: "i4", productId: "za-tee", by: "me", size: "M", color: "שחור", qty: 1, private: false },
+          { id: "i5", productId: "za-pants", by: "yossi", size: "38", color: "פחם", qty: 1, private: false },
+          { id: "i6", productId: "za-slip", by: "michal", size: "S", color: "שנהב", qty: 1, private: false },
+        ],
+        paid: { me: true, yossi: true, michal: true }, deliveryConfirmed: false,
+      },
+      {
+        id: "TG-2054", store: "amazon", status: "shipped", code: "2054",
+        createdBy: "me", createdAt: t - 9 * 86400000, closesAt: t - 9 * 86400000 + 1800000,
+        address: BUILDING.address,
+        participants: [{ id: "me" }, { id: "dana" }, { id: "avi" }, { id: "michal" }],
+        items: [
+          { id: "i7", productId: "am-hoodie", by: "me", size: "L", color: "שחור", qty: 1, private: false },
+          { id: "i8", productId: "am-tee", by: "dana", size: "M", color: "לבן", qty: 2, private: false },
+          { id: "i9", productId: "am-socks", by: "avi", size: "One size", color: "שחור", qty: 3, private: false },
+        ],
+        paid: { me: true, dana: true, avi: true, michal: true }, deliveryConfirmed: true,
+      },
+    ],
+    pulses: [
+      { emoji: "📦", text: "ההזמנה מ-ZARA באריזה — יוסי יאשר קבלה כשתגיע", at: t - 3 * 3600000 },
+      { emoji: "👗", text: "דנה פתחה הזמנה קבוצתית מ-H&M", at: t - 8 * 60000 },
+      { emoji: "🧺", text: "רינה הוסיפה 2× טי-שירט להזמנה של דנה", at: t - 5 * 60000 },
+    ],
+    simDone: {},
+  };
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.orders)) return s;
+    }
+  } catch { /* fall through to seed */ }
+  return seedState();
+}
+
+const S = loadState();
+function save() { try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch { /* in-memory only */ } }
 
 /* ---------------- Optional Supabase ---------------- */
-/* When config.js contains real keys, events + listings load from the
-   togdao Supabase project (schema in supabase/migrations). Demo data
-   is the automatic fallback, so the app always works. */
+/* With real keys in config.js the catalog + orders come from the
+   togdao Supabase project (schema in supabase/migrations); demo data
+   is the automatic fallback so the app always works. */
 
 let db = null;
 async function initSupabase() {
@@ -75,43 +141,85 @@ async function initSupabase() {
   try {
     const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
     db = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
-    const { data, error } = await db.from("events").select("*").limit(50);
-    if (!error && data && data.length) {
-      EVENTS.length = 0;
-      for (const e of data) {
-        EVENTS.push({
-          id: e.slug || e.id, title: e.title, venue: e.venue_name || "",
-          date: e.starts_at, category: e.category || "concert",
-          emoji: e.emoji || "🎫", faceMin: e.face_price_min, faceMax: e.face_price_max,
-          soldOut: e.status === "sold_out", waitlist: e.waitlist_count || 0,
-        });
-      }
-    }
+    await db.from("stores").select("id").limit(1);
   } catch (err) {
     console.warn("Supabase unavailable, using demo data", err);
   }
 }
 
-/* ---------------- Tiny helpers ---------------- */
+/* ---------------- Helpers ---------------- */
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = () => $("#view");
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const nis = (n) => `₪${Number(n).toLocaleString("he-IL")}`;
+const nis = (n) => `₪${(Math.round(n * 10) / 10).toLocaleString("he-IL")}`;
+const storeOf = (id) => STORES.find((s) => s.id === id);
+const productOf = (id) => PRODUCTS.find((p) => p.id === id);
+const orderOf = (id) => S.orders.find((o) => o.id === id);
 
-function fmtDate(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString("he-IL", { weekday: "short", day: "numeric", month: "long" }) +
-    " · " + d.toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" });
+function personName(id) {
+  if (id === "me") return S.user.name;
+  const n = NEIGHBORS.find((x) => x.id === id);
+  return n ? n.name : "שכן/ה";
 }
+function personApt(id) {
+  if (id === "me") return S.user.apt;
+  const n = NEIGHBORS.find((x) => x.id === id);
+  return n ? n.apt : "";
+}
+
+const AVA_CLASSES = ["c1", "c2", "c3", "c4", "c5", "c6"];
+function avaClass(id) {
+  const idx = ["me", ...NEIGHBORS.map((n) => n.id)].indexOf(id);
+  return AVA_CLASSES[(idx + AVA_CLASSES.length) % AVA_CLASSES.length];
+}
+
+function fmtAgo(t) {
+  const m = Math.round((now() - t) / 60000);
+  if (m < 1) return "עכשיו";
+  if (m < 60) return `לפני ${m} דק׳`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `לפני ${h} שע׳`;
+  return `לפני ${Math.round(h / 24)} ימים`;
+}
+
+function timerText(o) {
+  const left = o.closesAt - now();
+  if (left <= 0) return null;
+  const m = Math.floor(left / 60000);
+  const s = Math.floor((left % 60000) / 1000);
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+function orderTotal(o) {
+  return o.items.reduce((sum, it) => sum + (productOf(it.productId)?.price ?? 0) * it.qty, 0);
+}
+function goalPct(o) { return Math.min(100, Math.round((orderTotal(o) / FREE_SHIPPING_GOAL) * 100)); }
+function freeShipping(o) { return orderTotal(o) >= FREE_SHIPPING_GOAL; }
+function deliveryShare(o) {
+  if (freeShipping(o)) return 0;
+  return DELIVERY_FEE / Math.max(1, o.participants.length);
+}
+function mySavings(o) { return DELIVERY_FEE - deliveryShare(o); }
+function myItemsTotal(o) {
+  return o.items.filter((it) => it.by === "me").reduce((sum, it) => sum + (productOf(it.productId)?.price ?? 0) * it.qty, 0);
+}
+function isParticipant(o, id = "me") { return o.participants.some((p) => p.id === id); }
+function timerEnded(o) { return o.closesAt <= now(); }
 
 function toast(title, body, emoji = "✅") {
   const el = document.createElement("div");
   el.className = "toast";
   el.innerHTML = `<div>${emoji}</div><div><b>${esc(title)}</b><span>${esc(body)}</span></div>`;
   $("#toasts").appendChild(el);
-  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .4s"; }, 3600);
-  setTimeout(() => el.remove(), 4100);
+  setTimeout(() => { el.style.opacity = "0"; el.style.transition = "opacity .4s"; }, 3800);
+  setTimeout(() => el.remove(), 4300);
+}
+
+function pulse(emoji, text) {
+  S.pulses.unshift({ emoji, text, at: now() });
+  S.pulses = S.pulses.slice(0, 12);
+  save();
 }
 
 function modal(html) {
@@ -123,496 +231,721 @@ function modal(html) {
 }
 function closeModal() { $("#modal-root").innerHTML = ""; }
 
-const trustStars = (n) => `<span class="trust-dot">${"★".repeat(n)}${"☆".repeat(5 - n)}</span>`;
+function inviteLink(o) { return `${location.origin}${location.pathname}#/join/${o.code}`; }
+function inviteMessage(o) {
+  const st = storeOf(o.store);
+  const t = timerText(o);
+  return `${S.user.name} מהבניין פותח/ת הזמנה משותפת מ-${st.name} בתוגדאו 🏢 ${t ? `נשארו ${t} דקות להצטרף` : "מצטרפים עכשיו"} וחוסכים במשלוח. מצטרפים כאן: ${inviteLink(o)} · קוד: ${o.code}`;
+}
 
-const badgeHtml = (level) => level === "verified"
-  ? `<span class="badge badge-verified">✔ מאומת — ברקוד חדש הונפק</span>`
-  : `<span class="badge badge-safe">🔒 SAFE — כסף בנאמנות</span>`;
+/* ---------------- Shared fragments ---------------- */
+
+function storeLogoHtml(st, cls = "") {
+  return `<span class="store-logo ${cls}" style="background:${st.accent}">${esc(st.logo)}</span>`;
+}
+
+function pplRow(o) {
+  const shown = o.participants.slice(0, 5);
+  return `
+    <div class="pplrow">
+      ${shown.map((p) => `<span class="ppl ${avaClass(p.id)}" title="${esc(personName(p.id))}">${esc(personName(p.id)[0])}</span>`).join("")}
+      <span class="txt">${o.participants.length} שכנים · ${o.items.length} פריטים</span>
+    </div>`;
+}
+
+function goalBar(o) {
+  const total = orderTotal(o);
+  const remaining = Math.max(0, FREE_SHIPPING_GOAL - total);
+  return `
+    <div class="goalbar">
+      <div class="bar"><div class="fill" style="width:${goalPct(o)}%"></div></div>
+      <div class="lbl">
+        <span>סל משותף: <b>${nis(total)}</b></span>
+        <span>${freeShipping(o) ? `🎉 משלוח חינם הושג!` : `עוד ${nis(remaining)} למשלוח חינם`}</span>
+      </div>
+    </div>`;
+}
+
+function timerPill(o) {
+  const t = timerText(o);
+  if (o.status !== "collecting") return `<span class="timer-pill status">${STATUS_LABEL[o.status]}</span>`;
+  if (!t) return `<span class="timer-pill ended">הטיימר הסתיים</span>`;
+  return `<span class="timer-pill" data-countdown="${o.id}">⏳ ${t}</span>`;
+}
+
+function orderCard(o) {
+  const st = storeOf(o.store);
+  return `
+  <a class="order-card" href="#/order/${o.id}">
+    <div class="oc-head">
+      ${storeLogoHtml(st)}
+      <div class="t">
+        <h3>הזמנה משותפת · ${esc(st.name)}</h3>
+        <div class="meta">${personName(o.createdBy)} ${o.createdBy === "me" ? "(את/ה)" : `· ${personApt(o.createdBy)}`} פתח/ה</div>
+      </div>
+      ${timerPill(o)}
+    </div>
+    <div class="oc-body">
+      ${goalBar(o)}
+      ${pplRow(o)}
+      <div class="share-line">
+        <span class="muted">משלוח מפוצל: ${freeShipping(o) ? "חינם 🎉" : `${nis(deliveryShare(o))} לשכן`}</span>
+        <span class="save">חיסכון ${nis(mySavings(o))} לכל אחד</span>
+      </div>
+    </div>
+  </a>`;
+}
 
 /* ---------------- Screens ---------------- */
 
-function eventCard(ev) {
-  const count = LISTINGS.filter((l) => l.eventId === ev.id).length;
-  return `
-  <a class="event-card" href="#/event/${ev.id}">
-    <div class="event-cover" style="background:linear-gradient(160deg, rgba(140,123,255,.35), rgba(246,196,83,.12)), var(--card-2)">
-      <span class="emoji">${ev.emoji}</span>
-      ${ev.soldOut ? `<span class="badge-soldout">SOLD OUT</span>` : `<span class="badge-onsale">במכירה</span>`}
-    </div>
-    <div class="event-body">
-      <h3>${esc(ev.title)}</h3>
-      <div class="event-meta">${esc(ev.venue)}<br>${fmtDate(ev.date)}</div>
-      <div class="event-foot">
-        ${count ? `<span class="listings-count">${count} כרטיסים זמינים</span>` : `<span class="muted">אין כרטיסים כרגע</span>`}
-        <span class="face">נקוב ${nis(ev.faceMin)}${ev.faceMax > ev.faceMin ? "+" : ""}</span>
-      </div>
-    </div>
-  </a>`;
-}
-
-function listingStub(l, withEvent = false) {
-  const ev = EVENTS.find((e) => e.id === l.eventId);
-  const below = l.price < l.face;
-  return `
-  <a class="stub" href="#/checkout/${l.id}">
-    <div class="stub-main">
-      <div class="stub-title">${withEvent && ev ? esc(ev.title) + " · " : ""}${esc(l.seat)}</div>
-      <div class="stub-sub">${l.qty > 1 ? l.qty + " כרטיסים · " : ""}מחיר נקוב ${nis(l.face)}</div>
-      <div class="stub-seller">${trustStars(l.trust)} ${esc(l.seller)} · ${l.sales} מכירות</div>
-      ${badgeHtml(l.level)}
-    </div>
-    <div class="stub-price">
-      <span class="amount">${nis(l.price)}</span>
-      ${below ? `<span class="below-face">מתחת לנקוב! −${nis(l.face - l.price)}</span>` : `<span class="at-face">מחיר נקוב</span>`}
-    </div>
-    <span class="notch-b"></span>
-  </a>`;
-}
-
-/* ----- Home ----- */
+/* ----- Home (הבניין) ----- */
 function renderHome() {
-  const hot = EVENTS.filter((e) => e.soldOut);
-  const withListings = LISTINGS.slice(0, 4);
+  const active = S.orders.filter((o) => o.status === "collecting" && !timerEnded(o));
+  const inProgress = S.orders.filter((o) => (o.status !== "collecting" && o.status !== "shipped") || (o.status === "collecting" && timerEnded(o)));
+  const shipped = S.orders.filter((o) => o.status === "shipped");
+  const totalSaved = shipped.reduce((sum, o) => sum + mySavings(o) * o.participants.length, 0);
+
   view().innerHTML = `
     <div class="hero">
-      <h1>כרטיס יד שנייה.<br><em>ביטחון יד ראשונה.</em></h1>
-      <p>קונים ומוכרים כרטיסים במחיר המקורי בלבד. הכסף בנאמנות — עוקץ פשוט לא משתלם כאן.</p>
-      <div class="searchbox" onclick="location.hash='#/search'">
-        <span>🔍</span><input placeholder="מופע, אמן, קבוצה או מקום…" readonly />
-      </div>
+      <h1>הבניין שלנו<br><em>מזמין ביחד.</em>
+        <span class="windows">${Array.from({ length: 12 }, (_, i) => `<i class="${[1, 2, 5, 7, 10].includes(i) ? "lit" : i === 8 ? "warm" : ""}"></i>`).join("")}</span>
+      </h1>
+      <p>סל אחד לכל השכנים, משלוח אחד מפוצל, וכל אחד משלם רק על מה ששלו.</p>
     </div>
 
-    <div class="section-title"><h2>🔥 אזל? זה בדיוק המקום</h2><a class="more" href="#/search">הכול ›</a></div>
-    <div class="hscroll">${hot.map(eventCard).join("")}</div>
+    <div class="statgrid">
+      <div class="stat"><div class="n">${shipped.length}</div><div class="l">הזמנות שהושלמו</div></div>
+      <div class="stat"><div class="n">${nis(totalSaved)}</div><div class="l">נחסך לבניין</div></div>
+      <div class="stat"><div class="n">${BUILDING.neighbors}</div><div class="l">שכנים בתוגדאו</div></div>
+    </div>
 
-    <div class="section-title"><h2>🎟️ עלו עכשיו למכירה</h2></div>
-    ${withListings.map((l) => listingStub(l, true)).join("")}
+    ${active.length ? `
+      <div class="section-title"><h2>🟢 נאסף עכשיו — מצטרפים?</h2></div>
+      ${active.map(orderCard).join("")}` : `
+      <div class="empty"><span class="big">🧺</span>אין הזמנה פתוחה כרגע בבניין.<br>פתחו אחת — ותנו לשכנים לקפוץ עליה.</div>`}
 
-    <div class="waitlist-card mt16">
-      <span class="big">📣</span>
-      <h3>יש לך כרטיס שלא תנצלו?</h3>
-      <p>מילואים, מחלה, תוכניות שהשתנו — תוך דקות הכרטיס אצל קונה מאומת, והכסף בדרך אליך.</p>
-      <button class="btn btn-gold" onclick="location.hash='#/sell'">מכירת כרטיס ב-3 צעדים</button>
+    <button class="btn btn-lime" onclick="location.hash='#/new'">+ פתיחת הזמנה חדשה לבניין</button>
+
+    ${inProgress.length ? `
+      <div class="section-title"><h2>📦 בדרך אלינו</h2></div>
+      ${inProgress.map(orderCard).join("")}` : ""}
+
+    <div class="section-title"><h2>🔔 קורה בבניין</h2><a class="more" href="#/orders">ההזמנות שלי ›</a></div>
+    <div id="pulse-feed">
+      ${S.pulses.map((p) => `<div class="pulse"><span>${p.emoji}</span><span>${esc(p.text)}</span><span class="when">${fmtAgo(p.at)}</span></div>`).join("")}
     </div>
   `;
 }
 
-/* ----- Search ----- */
-let searchState = { q: "", cat: "all" };
-function renderSearch() {
-  const results = EVENTS.filter((e) => {
-    const okCat = searchState.cat === "all" || e.category === searchState.cat;
-    const okQ = !searchState.q || (e.title + e.venue).includes(searchState.q);
-    return okCat && okQ;
-  });
+/* ----- Stores ----- */
+function renderStores() {
   view().innerHTML = `
-    <div class="searchbox">
-      <span>🔍</span>
-      <input id="search-input" placeholder="מופע, אמן, קבוצה או מקום…" value="${esc(searchState.q)}" autofocus />
-    </div>
-    <div class="chips">
-      ${CATEGORIES.map((c) => `<button class="chip ${searchState.cat === c.id ? "active" : ""}" data-cat="${c.id}">${c.label}</button>`).join("")}
-    </div>
-    <div class="mt8" id="search-results">
-      ${results.length ? results.map((ev) => `<div class="mt8">${eventCard(ev).replace('class="event-card"', 'class="event-card" style="flex:none;width:100%"')}</div>`).join("") : `<div class="empty"><span class="big">🫥</span>לא מצאנו. נסו חיפוש אחר או הצטרפו לרשימת המתנה מהעמוד של האירוע.</div>`}
+    <h1 style="font-size:22px;font-weight:900">חנויות</h1>
+    <p class="muted mt8">בוחרים חנות, מוסיפים לסל של הבניין — והמשלוח מתחלק בין כולם.</p>
+    <div class="mt16">
+      ${STORES.map((st) => {
+        const open = S.orders.find((o) => o.store === st.id && o.status === "collecting" && !timerEnded(o));
+        return `
+        <a class="store-card" href="#/store/${st.id}">
+          ${storeLogoHtml(st)}
+          <div class="t">
+            <h3>${esc(st.name)}</h3>
+            <div class="meta">${esc(st.tagline)} · ${esc(st.eta)}</div>
+            ${open ? `<div class="meta" style="color:var(--lime);font-weight:700">🟢 יש הזמנה פתוחה של ${personName(open.createdBy)} — קופצים עליה!</div>` : ""}
+          </div>
+          <span class="arrow">‹</span>
+        </a>`;
+      }).join("")}
     </div>`;
-  $("#search-input").addEventListener("input", (e) => { searchState.q = e.target.value.trim(); renderSearch(); positionCursor(); });
-  view().querySelectorAll(".chip").forEach((ch) => ch.addEventListener("click", () => { searchState.cat = ch.dataset.cat; renderSearch(); }));
-  function positionCursor() { const i = $("#search-input"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
 }
 
-/* ----- Event page ----- */
-function renderEvent(id) {
-  const ev = EVENTS.find((e) => e.id === id);
-  if (!ev) return renderHome();
-  const listings = LISTINGS.filter((l) => l.eventId === id);
+/* ----- Store catalog ----- */
+let catFilter = {};
+function renderStore(storeId) {
+  const st = storeOf(storeId);
+  if (!st) return renderStores();
+  const cats = ["הכול", ...new Set(PRODUCTS.filter((p) => p.store === storeId).map((p) => p.cat))];
+  const current = catFilter[storeId] || "הכול";
+  const prods = PRODUCTS.filter((p) => p.store === storeId && (current === "הכול" || p.cat === current));
+  const open = S.orders.find((o) => o.store === storeId && o.status === "collecting" && !timerEnded(o));
+
   view().innerHTML = `
-    <a class="back-link" href="#/">‹ חזרה</a>
-    <div class="event-hero">
-      <div class="glow"></div>
-      <span class="emoji-big">${ev.emoji}</span>
-      <h1>${esc(ev.title)}</h1>
-      <div class="meta">📍 ${esc(ev.venue)}<br>🗓️ ${fmtDate(ev.date)}</div>
-      <div class="facewrap">
-        <span class="pill gold">מחיר נקוב: ${nis(ev.faceMin)}${ev.faceMax > ev.faceMin ? " – " + nis(ev.faceMax) : ""}</span>
-        ${ev.soldOut ? `<span class="pill">SOLD OUT בקופות</span>` : `<span class="pill">עדיין במכירה רשמית</span>`}
-      </div>
+    <a class="back-link" href="#/stores">‹ כל החנויות</a>
+    <div class="store-card" style="margin-bottom:4px">
+      ${storeLogoHtml(st)}
+      <div class="t"><h3>${esc(st.name)}</h3><div class="meta">${esc(st.tagline)}</div></div>
     </div>
-
-    <div class="law-note">⚖️ <div>בתוגדאו אי אפשר לבקש יותר מהמחיר הנקוב — ככה זה חוקי (סעיף 194א לחוק העונשין), וככה הספסרים נשארים בחוץ. אפשר גם למכור מתחת לנקוב.</div></div>
-
-    <div class="section-title"><h2>כרטיסים זמינים (${listings.length})</h2></div>
-    ${listings.length
-      ? listings.map((l) => listingStub(l)).join("")
-      : ""}
-
-    ${listings.length === 0 || ev.soldOut ? `
-    <div class="waitlist-card mt16">
-      <span class="big">⏰</span>
-      <h3>${listings.length === 0 ? "אין כרטיסים כרגע" : "לא מצאתם מקום שמתאים?"}</h3>
-      <p><span class="waitlist-count">${ev.waitlist} אנשים</span> כבר ברשימת ההמתנה. ברגע שעולה כרטיס — נשלח התראה, ויהיה לכם חלון של 10 דקות לקנות לפני כולם.</p>
-      <button class="btn btn-violet" id="btn-waitlist">הצטרפות לרשימת ההמתנה</button>
-    </div>` : ""}
-  `;
-  const wl = $("#btn-waitlist");
-  if (wl) wl.addEventListener("click", () => {
-    toast("נרשמת לרשימת ההמתנה! 🎯", `נודיע לך ברגע שעולה כרטיס ל${ev.title}.`, "📣");
-    wl.textContent = "את/ה ברשימה ✓"; wl.disabled = true; wl.style.opacity = ".6";
-  });
-}
-
-/* ----- Checkout ----- */
-function renderCheckout(listingId) {
-  const l = LISTINGS.find((x) => x.id === listingId);
-  if (!l) return renderHome();
-  const ev = EVENTS.find((e) => e.id === l.eventId);
-  const f = fee(l.price);
-  view().innerHTML = `
-    <a class="back-link" href="#/event/${ev.id}">‹ חזרה לאירוע</a>
-    <h1 style="font-size:22px;font-weight:900">אישור קנייה</h1>
-    <p class="muted mt8">${esc(ev.title)} · ${esc(l.seat)}</p>
-    <div class="mt8">${badgeHtml(l.level)}</div>
-
-    <div class="summary-card mt16">
-      <div class="sumrow"><span class="lbl">מחיר הכרטיס (≤ נקוב)</span><span>${nis(l.price)}</span></div>
-      <div class="sumrow"><span class="lbl">דמי שירות תוגדאו</span><span>${nis(f)}</span></div>
-      <div class="fee-note">דמי השירות הם עבור אימות, נאמנות והעברה בטוחה — שורה נפרדת, לא חלק ממחיר הכרטיס.</div>
-      <div class="sumrow total"><span>סה"כ לתשלום</span><span class="val">${nis(l.price + f)}</span></div>
+    ${open ? `<a href="#/order/${open.id}" class="building-strip" style="margin:10px 0">🟢 הזמנה פתוחה של ${personName(open.createdBy)} · ${open.participants.length} שכנים כבר בפנים — כל פריט שתוסיפו נכנס אליה</a>`
+           : `<div class="building-strip" style="margin:10px 0">✨ אין הזמנה פתוחה מ-${esc(st.name)} — הפריט הראשון שתוסיפו יפתח אחת חדשה</div>`}
+    <div class="chips">
+      ${cats.map((c) => `<button class="chip ${c === current ? "active" : ""}" data-cat="${esc(c)}">${esc(c)}</button>`).join("")}
     </div>
+    <div class="prodgrid">
+      ${prods.map((p) => `
+        <div class="prod" data-prod="${p.id}">
+          <div class="pic" style="background:linear-gradient(150deg, ${st.accent}33, var(--card-2))">
+            ${p.emoji}
+            <span class="stock ${p.stock}">${p.stock === "ok" ? "במלאי" : p.stock === "low" ? "מלאי נמוך" : "אחרונים!"}</span>
+          </div>
+          <div class="info">
+            <h4>${esc(p.name)}</h4>
+            <div class="price">${nis(p.price)}<span class="compare">${nis(p.compare)}</span></div>
+          </div>
+        </div>`).join("")}
+    </div>`;
 
-    <div class="section-title"><h2>מה קורה לכסף שלך</h2></div>
-    <div class="escrow-steps">
-      <div class="estep done"><div class="dot">💳</div><div class="txt"><b>משלמים עכשיו</b><span>הכסף לא עובר למוכר — הוא מוחזק בנאמנות אצל ספק סליקה מפוקח.</span></div></div>
-      <div class="estep"><div class="dot">🎫</div><div class="txt"><b>הכרטיס עובר אליך מיד</b><span>${l.level === "verified" ? "הברקוד הישן מבוטל אצל המפיק, וברקוד חדש מונפק על שמך. עותק המוכר הופך לנייר." : "קובץ הכרטיס נכנס לארנק שלך, והעותק של המוכר ננעל אצלנו."}</span></div></div>
-      <div class="estep"><div class="dot">🎉</div><div class="txt"><b>אחרי שנכנסת — המוכר מקבל את הכסף</b><span>יומיים אחרי האירוע, אם הכול תקין. סורבת בכניסה? לחיצה אחת ומקבלים את כל הכסף בחזרה, כולל דמי השירות.</span></div></div>
-    </div>
-
-    <div class="section-title"><h2>אמצעי תשלום</h2></div>
-    <div class="paymethods">
-      <button class="paymethod active" data-pm> Apple Pay</button>
-      <button class="paymethod" data-pm>Google Pay</button>
-      <button class="paymethod" data-pm>💳 כרטיס אשראי</button>
-      <button class="paymethod" data-pm>Bit</button>
-    </div>
-
-    <button class="btn btn-gold" id="btn-pay">תשלום מאובטח · ${nis(l.price + f)}</button>
-    <p class="tiny mt8" style="text-align:center">מאובטח ב-3D Secure · דמי השירות מוחזרים במלואם אם האחריות שלנו לא קוימה</p>
-  `;
-  view().querySelectorAll("[data-pm]").forEach((b) => b.addEventListener("click", () => {
-    view().querySelectorAll("[data-pm]").forEach((x) => x.classList.remove("active"));
-    b.classList.add("active");
+  view().querySelectorAll("[data-cat]").forEach((ch) => ch.addEventListener("click", () => {
+    catFilter[storeId] = ch.dataset.cat; renderStore(storeId);
   }));
-  $("#btn-pay").addEventListener("click", () => {
+  view().querySelectorAll("[data-prod]").forEach((el) => el.addEventListener("click", () => openProductSheet(el.dataset.prod)));
+}
+
+/* ----- Product add sheet ----- */
+function openProductSheet(productId) {
+  const p = productOf(productId);
+  const st = storeOf(p.store);
+  const pick = { size: p.sizes[0], color: p.colors[0], qty: 1, private: false };
+
+  function render() {
     modal(`
-      <h2>🎉 הכרטיס שלך!</h2>
-      <p class="sub">${esc(ev.title)} · ${esc(l.seat)}</p>
-      <div class="qr-zone"><span class="qr-locked">🔐</span>הברקוד ייחשף בארנק ביום האירוע — הגנה נוספת מפני צילומי מסך.</div>
-      <div class="honesty">💰 ${nis(l.price)} מוחזקים בנאמנות. המוכר יקבל אותם רק יומיים אחרי שנכנסת. משהו השתבש בשער? כפתור אחד בארנק — והחזר מלא.</div>
-      <button class="btn btn-gold mt16" onclick="closeModal();location.hash='#/wallet'">לארנק שלי</button>
+      <div style="display:flex;gap:14px;align-items:center">
+        <div class="item-row" style="margin:0;border:none;background:none;padding:0">
+          <span class="pic" style="width:64px;height:64px;flex-basis:64px;font-size:32px;background:linear-gradient(150deg, ${st.accent}33, var(--card-2));border-radius:16px;display:grid;place-items:center">${p.emoji}</span>
+        </div>
+        <div><h2 style="margin:0">${esc(p.name)}</h2>
+        <div class="muted">${esc(st.name)} · ${nis(p.price)} <span class="compare" style="text-decoration:line-through;color:var(--text-3)">${nis(p.compare)}</span></div></div>
+      </div>
+
+      <div class="pickrow"><span class="lbl">מידה</span>
+        <div class="pickopts">${p.sizes.map((s) => `<button class="pickopt ${s === pick.size ? "active" : ""}" data-size="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+      </div>
+      <div class="pickrow"><span class="lbl">צבע</span>
+        <div class="pickopts">${p.colors.map((c) => `<button class="pickopt ${c === pick.color ? "active" : ""}" data-color="${esc(c)}">${esc(c)}</button>`).join("")}</div>
+      </div>
+      <div class="pickrow"><span class="lbl">כמות</span>
+        <div class="qty-ctrl">
+          <button id="qty-minus">−</button><span class="q">${pick.qty}</span><button id="qty-plus">+</button>
+        </div>
+      </div>
+      <div class="toggle-row">
+        <div><div>🙈 פריט פרטי</div><div class="d">השכנים יראו שהוספת פריט — אבל לא מה הוא</div></div>
+        <div class="switch ${pick.private ? "on" : ""}" id="priv-switch"></div>
+      </div>
+      <button class="btn btn-lime" id="btn-add">הוספה לסל של הבניין · ${nis(p.price * pick.qty)}</button>
     `);
-    toast("התשלום בוצע", "הכרטיס נוסף לארנק. הכסף בנאמנות עד אחרי האירוע.", "🔒");
-  });
+    document.querySelectorAll("[data-size]").forEach((b) => b.addEventListener("click", () => { pick.size = b.dataset.size; render(); }));
+    document.querySelectorAll("[data-color]").forEach((b) => b.addEventListener("click", () => { pick.color = b.dataset.color; render(); }));
+    $("#qty-minus").addEventListener("click", () => { pick.qty = Math.max(1, pick.qty - 1); render(); });
+    $("#qty-plus").addEventListener("click", () => { pick.qty = Math.min(9, pick.qty + 1); render(); });
+    $("#priv-switch").addEventListener("click", () => { pick.private = !pick.private; render(); });
+    $("#btn-add").addEventListener("click", () => addItemFlow(p, pick));
+  }
+  render();
 }
 
-/* ----- Sell wizard ----- */
-let sell = { step: 1, eventId: null, price: null };
+function addItemFlow(p, pick) {
+  closeModal();
+  let o = S.orders.find((x) => x.store === p.store && x.status === "collecting" && !timerEnded(x));
+  let created = false;
+  if (!o) { o = createOrder(p.store, 30); created = true; }
+  if (!isParticipant(o)) {
+    o.participants.push({ id: "me" });
+    pulse("👋", `${S.user.name} הצטרף/ה להזמנה של ${personName(o.createdBy)} מ-${storeOf(o.store).name}`);
+  }
+  o.items.unshift({
+    id: "i" + now(), productId: p.id, by: "me",
+    size: pick.size, color: pick.color, qty: pick.qty, private: pick.private,
+  });
+  pulse("🛒", `${S.user.name} הוסיף/ה ${pick.qty}× ${pick.private ? "פריט פרטי" : p.name}`);
+  save();
+  toast(created ? "נפתחה הזמנה חדשה! 🎉" : "הפריט בסל המשותף!",
+    created ? "עכשיו מזמינים את השכנים — כל מצטרף מוזיל לכולם את המשלוח." : `נוסף להזמנה של ${personName(o.createdBy)}. ${freeShipping(o) ? "המשלוח כבר חינם 🎉" : ""}`, "🧺");
+  location.hash = `#/order/${o.id}`;
+  route();
+}
 
-function renderSell() {
-  const ev = EVENTS.find((e) => e.id === sell.eventId);
-  const stepsHead = `<div class="steps-head">${[1, 2, 3, 4].map((n) => `<div class="s ${sell.step >= n ? "on" : ""}"></div>`).join("")}</div>`;
-
-  if (sell.step === 1) {
+/* ----- New order wizard ----- */
+let wiz = { step: 1, store: null, minutes: 30 };
+function renderNew() {
+  const stepsHead = `<div class="steps-head">${[1, 2].map((n) => `<div class="s ${wiz.step >= n ? "on" : ""}"></div>`).join("")}</div>`;
+  if (wiz.step === 1) {
     view().innerHTML = `
-      <h1 style="font-size:22px;font-weight:900">מכירת כרטיס</h1>
-      <p class="muted mt8">שלב 1 · לאיזה אירוע הכרטיס?</p>
+      <h1 style="font-size:22px;font-weight:900">הזמנה חדשה לבניין</h1>
+      <p class="muted mt8">שלב 1 · מאיזו חנות מזמינים?</p>
       ${stepsHead}
-      <div class="searchbox"><span>🔍</span><input id="sell-search" placeholder="חיפוש בקטלוג האירועים…" /></div>
-      <div class="mt16" id="sell-events">
-        ${EVENTS.map((e) => `
-          <button class="kyc-item" style="width:100%;text-align:right" data-ev="${e.id}">
-            <span style="font-size:22px">${e.emoji}</span>
-            <span><b>${esc(e.title)}</b><br><span class="muted">${esc(e.venue)} · ${fmtDate(e.date)}</span></span>
-            <span class="st ${e.soldOut ? "todo" : ""}">${e.soldOut ? "SOLD OUT 🔥" : ""}</span>
-          </button>`).join("")}
-      </div>`;
-    $("#sell-search").addEventListener("input", (e) => {
-      const q = e.target.value.trim();
-      view().querySelectorAll("[data-ev]").forEach((b) => {
-        b.style.display = !q || b.textContent.includes(q) ? "" : "none";
-      });
-    });
-    view().querySelectorAll("[data-ev]").forEach((b) => b.addEventListener("click", () => {
-      sell.eventId = b.dataset.ev; sell.step = 2; renderSell();
-    }));
+      ${STORES.map((st) => `
+        <button class="store-card" style="width:100%;text-align:right" data-store="${st.id}">
+          ${storeLogoHtml(st)}
+          <div class="t"><h3>${esc(st.name)}</h3><div class="meta">${esc(st.eta)}</div></div>
+          <span class="arrow">‹</span>
+        </button>`).join("")}`;
+    view().querySelectorAll("[data-store]").forEach((b) => b.addEventListener("click", () => { wiz.store = b.dataset.store; wiz.step = 2; renderNew(); }));
     return;
   }
-
-  if (sell.step === 2) {
-    view().innerHTML = `
-      <a class="back-link" href="#/sell" onclick="sell.step=1">‹ החלפת אירוע</a>
-      <h1 style="font-size:22px;font-weight:900">${esc(ev.title)}</h1>
-      <p class="muted mt8">שלב 2 · העלאת הכרטיס</p>
-      ${stepsHead}
-      <div class="upload-zone" id="upzone">
-        <span class="big">📄</span>
-        גררו לכאן PDF / pkpass,<br>או העבירו אלינו את מייל הכרטיס
-        <div class="tiny mt8">הקובץ נכנס לכספת מוצפנת. אף אחד — כולל אתם — לא רואה אותו עד המכירה.</div>
-      </div>
-      <div id="ocr-out"></div>`;
-    const zone = $("#upzone");
-    ["dragover", "dragleave", "drop", "click"].forEach((evt) => zone.addEventListener(evt, (e) => {
-      e.preventDefault();
-      if (evt === "dragover") zone.classList.add("drag");
-      if (evt === "dragleave") zone.classList.remove("drag");
-      if (evt === "drop" || evt === "click") { zone.classList.remove("drag"); simulateOcr(ev); }
-    }));
-    return;
-  }
-
-  if (sell.step === 3) {
-    const face = ev.faceMin;
-    if (sell.price == null) sell.price = face;
-    view().innerHTML = `
-      <h1 style="font-size:22px;font-weight:900">קביעת מחיר</h1>
-      <p class="muted mt8">שלב 3 · עד המחיר הנקוב, לא שקל יותר</p>
-      ${stepsHead}
-      <div class="price-cap">
-        <div class="cap-line">
-          <span class="chosen" id="price-out">${nis(sell.price)}</span>
-          <span class="maxnote">תקרה: ${nis(face)} (נקוב)</span>
-        </div>
-        <input type="range" id="price-range" min="${Math.max(20, Math.round(face * 0.3))}" max="${face}" step="5" value="${sell.price}" />
-        <div class="tiny mt8">האפליקציה חוסמת מחיר מעל הנקוב — ככה המכירה חוקית לחלוטין. מחיר נמוך מהנקוב = מכירה מהירה יותר.</div>
-      </div>
-      <div class="law-note">💡 טיפ: כרטיסים במחיר הנקוב לאירועי SOLD OUT נמכרים בדרך כלל תוך פחות מ-24 שעות.</div>
-      <button class="btn btn-gold" id="to-step4">המשך</button>`;
-    $("#price-range").addEventListener("input", (e) => {
-      sell.price = Number(e.target.value);
-      $("#price-out").textContent = nis(sell.price);
-    });
-    $("#to-step4").addEventListener("click", () => { sell.step = 4; renderSell(); });
-    return;
-  }
-
-  // step 4 — review + KYC
-  const f = fee(sell.price);
+  const st = storeOf(wiz.store);
   view().innerHTML = `
-    <h1 style="font-size:22px;font-weight:900">רגע לפני פרסום</h1>
-    <p class="muted mt8">שלב 4 · אימות מוכר ופרסום</p>
+    <a class="back-link" href="#/new" id="wiz-back">‹ החלפת חנות</a>
+    <h1 style="font-size:22px;font-weight:900">${esc(st.name)} · הגדרות הזמנה</h1>
+    <p class="muted mt8">שלב 2 · כמה זמן הסל פתוח לשכנים?</p>
     ${stepsHead}
-    <div class="summary-card">
-      <div class="sumrow"><span class="lbl">אירוע</span><span>${esc(ev.title)}</span></div>
-      <div class="sumrow"><span class="lbl">מחיר שקבעת</span><span>${nis(sell.price)}</span></div>
-      <div class="sumrow"><span class="lbl">הקונה ישלם (כולל דמי שירות)</span><span>${nis(sell.price + f)}</span></div>
-      <div class="sumrow total"><span>יגיע אליך אחרי האירוע</span><span class="val">${nis(sell.price)}</span></div>
+    <div class="timer-opts">
+      ${[15, 30, 60, 120].map((m) => `<button class="pickopt ${wiz.minutes === m ? "active" : ""}" data-min="${m}">${m} דק׳</button>`).join("")}
     </div>
-    <div class="section-title"><h2>אימות מוכר (KYC)</h2></div>
-    <div class="kyc-list">
-      <div class="kyc-item">📱 <span>טלפון ישראלי מאומת</span><span class="st ok">✓ הושלם</span></div>
-      <div class="kyc-item">🪪 <span>תעודת זהות</span><span class="st ok">✓ הושלם</span></div>
-      <div class="kyc-item">🏦 <span>חשבון בנק על שמך לקבלת התשלום</span><span class="st ok">✓ הושלם</span></div>
+    <p class="tiny">כשמסתיים הטיימר הסל ננעל והחנות מתחילה לטפל בהזמנה. אפשר לשנות גם אחר כך.</p>
+    <div class="field">
+      <label>כתובת מסירה</label>
+      <input id="wiz-address" value="${esc(BUILDING.address)}" />
     </div>
-    <button class="btn btn-gold" id="btn-publish">פרסום המודעה 🚀</button>
-    <p class="tiny mt8" style="text-align:center">קובץ הכרטיס נעול בכספת. ברגע המכירה — הגישה שלך אליו נחסמת לצמיתות.</p>`;
-  $("#btn-publish").addEventListener("click", () => {
-    toast("המודעה באוויר! 🎉", `${ev.waitlist ? ev.waitlist + " ממתינים ברשימה — " : ""}נודיע לך ב-WhatsApp ברגע שנמכר.`, "🚀");
-    sell = { step: 1, eventId: null, price: null };
-    location.hash = "#/wallet";
+    <div class="summary-card mt16">
+      <div class="sumrow"><span class="lbl">דמי משלוח (לפני פיצול)</span><span>${nis(DELIVERY_FEE)}</span></div>
+      <div class="sumrow"><span class="lbl">יעד משלוח חינם</span><span>${nis(FREE_SHIPPING_GOAL)}</span></div>
+      <div class="fee-note">כל שכן שמצטרף מוזיל לכולם — וכשהסל עובר ${nis(FREE_SHIPPING_GOAL)}, המשלוח חינם לכולם.</div>
+    </div>
+    <button class="btn btn-lime mt16" id="wiz-create">פתיחת ההזמנה והזמנת שכנים 🚀</button>`;
+  $("#wiz-back").addEventListener("click", (e) => { e.preventDefault(); wiz.step = 1; renderNew(); });
+  view().querySelectorAll("[data-min]").forEach((b) => b.addEventListener("click", () => { wiz.minutes = Number(b.dataset.min); renderNew(); }));
+  $("#wiz-create").addEventListener("click", () => {
+    const o = createOrder(wiz.store, wiz.minutes, $("#wiz-address").value.trim() || BUILDING.address);
+    wiz = { step: 1, store: null, minutes: 30 };
+    toast("ההזמנה פתוחה! 🎉", "עכשיו שולחים לשכנים את הלינק — כל מצטרף מוזיל את המשלוח.", "🏢");
+    location.hash = `#/order/${o.id}`;
   });
 }
 
-function simulateOcr(ev) {
-  $("#ocr-out").innerHTML = `<div class="empty"><span class="big">🔍</span>מפענחים את הכרטיס…</div>`;
-  setTimeout(() => {
-    $("#ocr-out").innerHTML = `
-      <div class="ocr-result mt16">
-        <div class="ocr-row"><span class="k">אירוע זוהה</span><span class="v" style="direction:rtl;font-family:inherit">${esc(ev.title)} ✓</span></div>
-        <div class="ocr-row"><span class="k">מושב</span><span class="v" style="direction:rtl;font-family:inherit">גוש 4 · שורה 11 · מושב 7</span></div>
-        <div class="ocr-row"><span class="k">מחיר נקוב</span><span class="v">${nis(ev.faceMin)}</span></div>
-        <div class="ocr-row"><span class="k">טביעת ברקוד (hash)</span><span class="v">a91f…c47e</span></div>
-        <div class="ocr-row"><span class="k">בדיקת כפילות</span><span class="v" style="color:var(--teal);direction:rtl;font-family:inherit">לא פורסם בעבר ✓</span></div>
-      </div>
-      <button class="btn btn-gold mt16" id="to-step3">הפרטים נכונים — המשך</button>`;
-    $("#to-step3").addEventListener("click", () => { sell.step = 3; renderSell(); });
-  }, 1200);
+function createOrder(storeId, minutes, address = BUILDING.address) {
+  const o = {
+    id: `TG-${Math.floor(1000 + Math.random() * 9000)}`,
+    store: storeId, status: "collecting",
+    code: String(Math.floor(1000 + Math.random() * 9000)),
+    createdBy: "me", createdAt: now(), closesAt: now() + minutes * 60000,
+    address,
+    participants: [{ id: "me" }],
+    items: [], paid: {}, deliveryConfirmed: false,
+  };
+  S.orders.unshift(o);
+  pulse("🧺", `${S.user.name} פתח/ה הזמנה קבוצתית מ-${storeOf(storeId).name}`);
+  save();
+  return o;
 }
 
-/* ----- Wallet ----- */
-let walletTab = "bought";
-function renderWallet() {
-  const bought = MY_TICKETS.filter((t) => t.type === "bought");
-  const sold = MY_TICKETS.filter((t) => t.type === "sold");
+/* ----- Order page ----- */
+function renderOrder(id) {
+  const o = orderOf(id);
+  if (!o) return renderHome();
+  const st = storeOf(o.store);
+  const founder = o.createdBy === "me";
+  const member = isParticipant(o);
+  const iPaid = !!o.paid.me;
+  const myTotal = myItemsTotal(o) + (member ? deliveryShare(o) : 0);
+  const stIdx = STATUS_FLOW.indexOf(o.status);
+  const collecting = o.status === "collecting" && !timerEnded(o);
+
   view().innerHTML = `
-    <h1 style="font-size:22px;font-weight:900">הארנק שלי</h1>
-    <div class="tabs mt16">
-      <button class="tab ${walletTab === "bought" ? "active" : ""}" data-tab="bought">קניתי (${bought.length})</button>
-      <button class="tab ${walletTab === "sold" ? "active" : ""}" data-tab="sold">מכרתי (${sold.length})</button>
-      <button class="tab ${walletTab === "alerts" ? "active" : ""}" data-tab="alerts">התראות (${MY_WAITLISTS.length})</button>
+    <a class="back-link" href="#/">‹ הבניין</a>
+    <div class="order-hero">
+      <div class="glow"></div>
+      <div class="row">
+        ${storeLogoHtml(st)}
+        <div>
+          <h1>הזמנה משותפת · ${esc(st.name)}</h1>
+          <div class="meta">${personName(o.createdBy)}${founder ? " (את/ה)" : ` · ${personApt(o.createdBy)}`} פתח/ה · ${esc(o.address)}</div>
+        </div>
+      </div>
+      ${o.status === "collecting" ? `
+        <div class="bigtimer ${timerEnded(o) ? "ended" : ""}">
+          <div class="clock" data-countdown-big="${o.id}">${timerText(o) ?? "00:00"}</div>
+          <div class="sub">${timerEnded(o) ? "הסל ננעל — החנות מטפלת בהזמנה" : "עד נעילת הסל — כל שכן שמצטרף מוזיל לכולם"}</div>
+        </div>` : ""}
     </div>
-    <div id="wallet-body"></div>`;
-  view().querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { walletTab = t.dataset.tab; renderWallet(); }));
 
-  const body = $("#wallet-body");
-  if (walletTab === "bought") {
-    body.innerHTML = bought.map((t) => {
-      const ev = EVENTS.find((e) => e.id === t.eventId);
-      return `
-      <div class="wallet-ticket">
-        <div class="wt-head">
-          <div><h3>${ev.emoji} ${esc(ev.title)}</h3><div class="meta">${esc(ev.venue)} · ${fmtDate(ev.date)}<br>${esc(t.seat)}</div></div>
-          ${badgeHtml(t.level)}
-        </div>
-        <div class="wt-body">
-          <div class="qr-zone"><span class="qr-locked">🔐</span>הברקוד ייחשף ביום האירוע</div>
-          <div class="statusline"><span class="dot-wait"></span>${esc(t.statusText)}</div>
-          <div style="display:flex;gap:10px;margin-top:14px">
-            <button class="btn btn-ghost btn-sm" style="flex:1" onclick="toast('הועבר ל-Wallet','הכרטיס נוסף ל-Apple Wallet.','📲')">הוספה ל-Wallet</button>
-            <button class="btn btn-danger btn-sm" style="flex:1" data-dispute="${t.id}">סורבתי בכניסה</button>
-          </div>
-        </div>
-      </div>`;
-    }).join("") || emptyState("🛍️", "עוד לא קנית כרטיסים", "כשתקנו — הם יחכו כאן, עם הברקוד נעול עד יום האירוע.");
-    body.querySelectorAll("[data-dispute]").forEach((b) => b.addEventListener("click", () => openDispute(b.dataset.dispute)));
-  }
-
-  if (walletTab === "sold") {
-    body.innerHTML = sold.map((t) => {
-      const ev = EVENTS.find((e) => e.id === t.eventId);
-      return `
-      <div class="wallet-ticket">
-        <div class="wt-head">
-          <div><h3>${ev.emoji} ${esc(ev.title)}</h3><div class="meta">${esc(t.seat)} · נמכר ל${esc(t.buyer)}</div></div>
-          <span class="pill gold">${nis(t.price)}</span>
-        </div>
-        <div class="wt-body">
-          <div class="escrow-steps">
-            <div class="estep done"><div class="dot">✓</div><div class="txt"><b>נמכר והועבר לקונה</b><span>הגישה שלך לקובץ נחסמה.</span></div></div>
-            <div class="estep done"><div class="dot">🔒</div><div class="txt"><b>${nis(t.price)} בנאמנות</b><span>מוחזק אצל ספק הסליקה.</span></div></div>
-            <div class="estep"><div class="dot">🏦</div><div class="txt"><b>העברה לחשבונך</b><span>יומיים אחרי האירוע, אם אין מחלוקת.</span></div></div>
-          </div>
-        </div>
-      </div>`;
-    }).join("") || emptyState("💸", "אין מכירות עדיין", "כרטיס שלא תנצלו? תוך 3 צעדים הוא באוויר.");
-  }
-
-  if (walletTab === "alerts") {
-    body.innerHTML = MY_WAITLISTS.map((w) => {
-      const ev = EVENTS.find((e) => e.id === w.eventId);
-      return `
-      <div class="wallet-ticket">
-        <div class="wt-head">
-          <div><h3>${ev.emoji} ${esc(ev.title)}</h3><div class="meta">ברשימת ההמתנה מ-${new Date(w.joined).toLocaleDateString("he-IL")} · מקום ${w.position} בתור</div></div>
-        </div>
-        <div class="wt-body">
-          <div class="statusline"><span class="dot-live"></span>נודיע ברגע שעולה כרטיס — ויהיה לך חלון של 10 דקות</div>
-          <button class="btn btn-violet btn-sm mt16" id="btn-simulate-match">👀 הדגמה: מה קורה כשנמצא כרטיס</button>
-        </div>
-      </div>`;
-    }).join("") || emptyState("📣", "אין התראות פעילות", "הצטרפו לרשימת המתנה מכל עמוד אירוע שאזל.");
-    const sim = $("#btn-simulate-match");
-    if (sim) sim.addEventListener("click", simulateMatch);
-  }
-}
-
-function emptyState(emoji, title, sub) {
-  return `<div class="empty"><span class="big">${emoji}</span><b>${title}</b><br><span class="tiny">${sub}</span></div>`;
-}
-
-function simulateMatch() {
-  const ev = EVENTS.find((e) => e.id === "noa-kirel");
-  let secs = 600;
-  modal(`
-    <h2>🎯 נמצא כרטיס בשבילך!</h2>
-    <p class="sub">${esc(ev.title)} · פארטר עמידה · ${nis(280)} (מחיר נקוב)</p>
-    <div class="countdown" id="cd">10:00</div>
-    <p class="tiny" style="text-align:center;margin-top:6px">הכרטיס שמור לך ל-10 דקות בלבד — אחר כך הוא עובר לבא בתור</p>
-    <button class="btn btn-gold mt16" onclick="closeModal();location.hash='#/checkout/l5'">לקנייה מיידית</button>
-    <button class="btn btn-ghost mt8" onclick="closeModal()">ויתור — להעביר לבא בתור</button>
-  `);
-  const iv = setInterval(() => {
-    const el = document.getElementById("cd");
-    if (!el) return clearInterval(iv);
-    secs--;
-    el.textContent = `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(secs % 60).padStart(2, "0")}`;
-  }, 1000);
-}
-
-function openDispute(ticketId) {
-  const t = MY_TICKETS.find((x) => x.id === ticketId);
-  const ev = EVENTS.find((e) => e.id === t.eventId);
-  modal(`
-    <h2>🚨 סורבת בכניסה?</h2>
-    <p class="sub">${esc(ev.title)} · הדיווח נחתם אוטומטית במיקום ובזמן — זו הראיה שלך.</p>
-    <div class="kyc-list">
-      <div class="kyc-item">📍 <span>מיקום: ${esc(ev.venue)}</span><span class="st ok">✓ אומת</span></div>
-      <div class="kyc-item">🕘 <span>זמן: עכשיו, בזמן האירוע</span><span class="st ok">✓ אומת</span></div>
-      <div class="kyc-item">💰 <span>${nis(t.paid)} + ${nis(t.fee)} דמי שירות בנאמנות</span><span class="st ok">מוכן להחזר</span></div>
+    <div class="statusline-h">
+      ${STATUS_FLOW.map((s, i) => `
+        <div class="snode ${i <= stIdx ? "done" : ""}">
+          <div class="b">${["🧺", "🏬", "📦", "🚚", "🏠"][i]}</div>
+          <div class="l">${STATUS_LABEL[s]}</div>
+        </div>`).join("")}
     </div>
-    <div class="honesty">הכסף שלך מעולם לא הגיע למוכר. אם הדיווח מאושר — החזר מלא כולל דמי השירות, והמוכר נחסם ומדווח.</div>
-    <button class="btn btn-danger mt16" id="btn-file-dispute">הגשת דיווח והחזר כספי</button>
-  `);
-  $("#btn-file-dispute").addEventListener("click", () => {
-    closeModal();
-    toast("הדיווח התקבל", "צוות התוגדאו בודק עכשיו. החזר צפוי תוך דקות. מצטערים על הערב — אנחנו על זה.", "🚨");
+
+    ${goalBar(o)}
+    ${pplRow(o)}
+
+    ${collecting && member ? `
+    <div class="invite-card">
+      <h3>📣 מגייסים את הבניין</h3>
+      <p>שולחים לינק לקבוצת הוואטסאפ של הבניין — כל מצטרף מוזיל את המשלוח לכולם.</p>
+      <div class="invite-code"><span class="code">${o.code}</span></div>
+      <div class="invite-actions">
+        <button class="btn btn-violet btn-sm" style="flex:1" id="btn-whatsapp">💬 שיתוף בוואטסאפ</button>
+        <button class="btn btn-ghost btn-sm" style="flex:1" id="btn-copy">📋 העתקת לינק</button>
+      </div>
+    </div>` : ""}
+
+    ${collecting && !member ? `
+      <button class="btn btn-lime mt16" id="btn-join">👋 הצטרפות להזמנה של ${personName(o.createdBy)}</button>
+      <p class="tiny mt8" style="text-align:center">מצטרפים, מוסיפים פריטים משלכם, ומשלמים רק על שלכם + חלק שווה במשלוח.</p>` : ""}
+
+    <div class="section-title"><h2>הסל המשותף (${o.items.length})</h2>
+      ${collecting && member ? `<a class="more" href="#/store/${o.store}">+ הוספת פריט</a>` : ""}
+    </div>
+    ${o.items.length ? o.items.map((it) => {
+      const p = productOf(it.productId);
+      const hidden = it.private && it.by !== "me";
+      return `
+      <div class="item-row ${hidden ? "private-other" : ""}">
+        <span class="pic">${hidden ? "🙈" : p.emoji}</span>
+        <div class="t">
+          <h4>${hidden ? "פריט פרטי" : esc(p.name)}</h4>
+          <div class="meta">${esc(personName(it.by))}${it.by === "me" ? "" : ` · ${esc(personApt(it.by))}`}${hidden ? "" : ` · ${esc(it.size)} · ${esc(it.color)} · ${it.qty}×`}</div>
+        </div>
+        ${it.by === "me" ? `<span class="mine-tag">שלי</span>` : ""}
+        <span class="price">${hidden ? "•••" : nis(p.price * it.qty)}</span>
+      </div>`;
+    }).join("") : `<div class="empty"><span class="big">🧺</span>הסל עוד ריק — תהיו הראשונים להוסיף.</div>`}
+
+    ${member ? `
+    <div class="section-title"><h2>החלק שלי</h2></div>
+    <div class="summary-card">
+      <div class="sumrow"><span class="lbl">הפריטים שלי</span><span>${nis(myItemsTotal(o))}</span></div>
+      <div class="sumrow"><span class="lbl">משלוח מפוצל (${nis(DELIVERY_FEE)} ÷ ${o.participants.length})</span>
+        <span class="${freeShipping(o) ? "free" : ""}">${freeShipping(o) ? "חינם 🎉" : nis(deliveryShare(o))}</span></div>
+      <div class="fee-note">משלמים רק על הפריטים שלכם — לעולם לא על של השכנים.</div>
+      <div class="sumrow total"><span>סה"כ שלי</span><span class="val">${nis(myTotal)}</span></div>
+    </div>
+
+    ${iPaid ? `
+      <div class="honesty mt16">🔒 שילמת ${nis(myTotal)} — הכסף <b>מוחזק ולא נתפס</b> עד ש${founder ? "תאשר/י" : `${personName(o.createdBy)} יאשר/תאשר`} שהחבילה הגיעה לבניין. לא הגיעה? הכסף חוזר אוטומטית.</div>` : `
+      <button class="btn btn-lime mt16" id="btn-pay" ${myItemsTotal(o) === 0 ? "disabled" : ""}>תשלום החלק שלי · ${nis(myTotal)}</button>
+      <p class="tiny mt8" style="text-align:center">התשלום מאושר עכשיו אך נתפס רק אחרי אישור מסירה — אסקרו מלא.</p>`}
+    ` : ""}
+
+    ${founder && o.status !== "shipped" ? `
+    <div class="section-title"><h2>ניהול (פותח ההזמנה)</h2></div>
+    ${o.status === "collecting" && !timerEnded(o) ? `
+      <div class="status-actions">
+        <button class="btn btn-ghost btn-sm" id="btn-extend">⏳ הארכת הטיימר ב-15 דק׳</button>
+        <button class="btn btn-ghost btn-sm" id="btn-close-now">🔒 נעילת הסל עכשיו</button>
+      </div>` : ""}
+    ${["ready", "shipped"].includes(o.status) || o.status === "packing" ? `
+      <button class="btn btn-lime mt8" id="btn-confirm-delivery">📬 החבילה הגיעה — אישור מסירה ושחרור הכסף</button>
+      <p class="tiny mt8" style="text-align:center">האישור משחרר את התשלומים של כל השכנים לחנות.</p>` : ""}
+    ` : ""}
+
+    ${o.status === "shipped" ? `
+      <div class="honesty mt16">🎉 ההזמנה הושלמה! החבילה נמסרה, התשלומים שוחררו, והבניין חסך ביחד ${nis(mySavings(o) * o.participants.length)} על המשלוח.</div>` : ""}
+  `;
+
+  const wa = $("#btn-whatsapp");
+  if (wa) wa.addEventListener("click", () => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(inviteMessage(o))}`, "_blank");
   });
+  const cp = $("#btn-copy");
+  if (cp) cp.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(inviteLink(o)); toast("הלינק הועתק", "שולחים בקבוצת הבניין ומחכים שיקפצו.", "📋"); }
+    catch { toast("הלינק", inviteLink(o), "🔗"); }
+  });
+  const jn = $("#btn-join");
+  if (jn) jn.addEventListener("click", () => {
+    o.participants.push({ id: "me" });
+    pulse("👋", `${S.user.name} הצטרף/ה להזמנה של ${personName(o.createdBy)}`);
+    save();
+    toast("הצטרפת! 👋", `המשלוח של כולם ירד ל-${freeShipping(o) ? "חינם" : nis(deliveryShare(o))}. עכשיו מוסיפים פריטים.`, "🎉");
+    renderOrder(id);
+  });
+  const pay = $("#btn-pay");
+  if (pay) pay.addEventListener("click", () => openPaySheet(o));
+  const ext = $("#btn-extend");
+  if (ext) ext.addEventListener("click", () => {
+    o.closesAt += 15 * 60000; save();
+    toast("הטיימר הוארך", "עוד 15 דקות לשכנים להצטרף.", "⏳");
+    renderOrder(id);
+  });
+  const cls = $("#btn-close-now");
+  if (cls) cls.addEventListener("click", () => {
+    o.closesAt = now(); o.status = "accepted"; save();
+    pulse("🔒", `הסל של ${storeOf(o.store).name} ננעל — ההזמנה נשלחה לחנות`);
+    toast("הסל ננעל", "ההזמנה המרוכזת נשלחה לחנות.", "🔒");
+    renderOrder(id);
+  });
+  const cd = $("#btn-confirm-delivery");
+  if (cd) cd.addEventListener("click", () => {
+    o.status = "shipped"; o.deliveryConfirmed = true; save();
+    pulse("🏠", `החבילה מ-${storeOf(o.store).name} נמסרה — התשלומים שוחררו`);
+    toast("המסירה אושרה! 🎉", "כל התשלומים שוחררו לחנות. כל הכבוד לבניין.", "📬");
+    renderOrder(id);
+  });
+}
+
+function openPaySheet(o) {
+  const myTotal = myItemsTotal(o) + deliveryShare(o);
+  modal(`
+    <h2>תשלום החלק שלי</h2>
+    <p class="sub">${esc(storeOf(o.store).name)} · הזמנה ${esc(o.id)}</p>
+    <div class="summary-card">
+      <div class="sumrow"><span class="lbl">הפריטים שלי</span><span>${nis(myItemsTotal(o))}</span></div>
+      <div class="sumrow"><span class="lbl">החלק שלי במשלוח</span><span class="${freeShipping(o) ? "free" : ""}">${freeShipping(o) ? "חינם 🎉" : nis(deliveryShare(o))}</span></div>
+      <div class="sumrow total"><span>סה"כ</span><span class="val">${nis(myTotal)}</span></div>
+    </div>
+    <div class="escrow-steps">
+      <div class="estep done"><div class="dot">💳</div><div class="txt"><b>התשלום מאושר עכשיו</b><span>הכרטיס מחויב באישור בלבד (hold) — הכסף לא נתפס.</span></div></div>
+      <div class="estep"><div class="dot">📦</div><div class="txt"><b>החנות אורזת ושולחת</b><span>הזמנה מרוכזת אחת לכל הבניין.</span></div></div>
+      <div class="estep"><div class="dot">📬</div><div class="txt"><b>החבילה הגיעה? הכסף משוחרר</b><span>רק אחרי שפותח ההזמנה מאשר מסירה. לא הגיעה — החיוב מתבטל אוטומטית.</span></div></div>
+    </div>
+    <button class="btn btn-lime" id="btn-do-pay">אישור תשלום · ${nis(myTotal)}</button>
+    <p class="tiny mt8" style="text-align:center">Visa •••• 4242 · מאובטח ב-3D Secure</p>
+  `);
+  $("#btn-do-pay").addEventListener("click", () => {
+    o.paid.me = true; save();
+    closeModal();
+    pulse("💳", `${S.user.name} שילם/ה את החלק שלו/ה בהזמנה של ${personName(o.createdBy)}`);
+    toast("שולם ומוחזק 🔒", "הכסף באסקרו — ישוחרר לחנות רק אחרי אישור מסירה.", "💳");
+    renderOrder(o.id);
+  });
+}
+
+/* ----- My orders ----- */
+let ordersTab = "active";
+function renderOrders() {
+  const mine = S.orders.filter((o) => isParticipant(o));
+  const active = mine.filter((o) => o.status !== "shipped");
+  const done = mine.filter((o) => o.status === "shipped");
+  const list = ordersTab === "active" ? active : done;
+  view().innerHTML = `
+    <h1 style="font-size:22px;font-weight:900">ההזמנות שלי</h1>
+    <div class="tabs mt16">
+      <button class="tab ${ordersTab === "active" ? "active" : ""}" data-tab="active">פעילות (${active.length})</button>
+      <button class="tab ${ordersTab === "done" ? "active" : ""}" data-tab="done">הושלמו (${done.length})</button>
+    </div>
+    ${list.length ? list.map(orderCard).join("") : `<div class="empty"><span class="big">📦</span>אין כאן הזמנות עדיין.<br><span class="tiny">פותחים הזמנה או קופצים על אחת פתוחה מהבניין.</span></div>`}
+  `;
+  view().querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => { ordersTab = t.dataset.tab; renderOrders(); }));
+}
+
+/* ----- Join via code ----- */
+function renderJoin(code) {
+  const o = S.orders.find((x) => x.code === code);
+  if (!o) {
+    view().innerHTML = `<div class="empty"><span class="big">🤔</span>לא מצאנו הזמנה עם הקוד <b dir="ltr">${esc(code)}</b>.<br><span class="tiny">אולי הסתיימה? בדקו עם השכן ששלח את הלינק.</span></div>
+      <button class="btn btn-ghost" onclick="location.hash='#/'">לעמוד הבניין</button>`;
+    return;
+  }
+  const st = storeOf(o.store);
+  view().innerHTML = `
+    <div class="order-hero" style="text-align:center">
+      <div class="glow"></div>
+      <div style="font-size:40px">👋</div>
+      <h1 style="margin-top:8px">${personName(o.createdBy)} מזמין/ה אותך להזמנה מ-${esc(st.name)}</h1>
+      <div class="meta mt8">${esc(o.address)} · ${o.participants.length} שכנים כבר בפנים</div>
+      ${o.status === "collecting" && !timerEnded(o) ? `
+        <div class="bigtimer"><div class="clock" data-countdown-big="${o.id}">${timerText(o) ?? "00:00"}</div>
+        <div class="sub">עד נעילת הסל</div></div>` : `<div class="mt16">${timerPill(o)}</div>`}
+    </div>
+    ${goalBar(o)}
+    ${o.status === "collecting" && !timerEnded(o) && !isParticipant(o) ? `
+      <button class="btn btn-lime mt16" id="btn-join-code">מצטרפ/ת! קחו אותי לסל 🧺</button>` : `
+      <button class="btn btn-ghost mt16" onclick="location.hash='#/order/${o.id}'">צפייה בהזמנה</button>`}
+  `;
+  const b = $("#btn-join-code");
+  if (b) b.addEventListener("click", () => {
+    o.participants.push({ id: "me" });
+    pulse("👋", `${S.user.name} הצטרף/ה דרך לינק ההזמנה`);
+    save();
+    toast("הצטרפת! 🎉", "עכשיו מוסיפים פריטים משלכם לסל.", "👋");
+    location.hash = `#/order/${o.id}`;
+  });
+}
+
+/* ----- Store dashboard (demo of the merchant side) ----- */
+function renderStoreDash() {
+  const relevant = S.orders.filter((o) => timerEnded(o) || o.status !== "collecting");
+  view().innerHTML = `
+    <a class="back-link" href="#/profile">‹ פרופיל</a>
+    <h1 style="font-size:22px;font-weight:900">מסך החנות 🏬</h1>
+    <div class="dash-note">💡 ככה הצד של החנות רואה את הבניין: הזמנה מרוכזת אחת, רשימת ליקוט אחת, כתובת אחת — במקום 6 הזמנות קטנות.</div>
+    ${relevant.length ? relevant.map((o) => {
+      const st = storeOf(o.store);
+      const picking = {};
+      o.items.forEach((it) => {
+        const p = productOf(it.productId);
+        const key = `${p.name} · ${it.size} · ${it.color}`;
+        picking[key] = (picking[key] || 0) + it.qty;
+      });
+      const idx = STATUS_FLOW.indexOf(o.status);
+      const next = STATUS_FLOW[idx + 1];
+      const addressOk = (o.address || "").trim().length >= 8;
+      return `
+      <div class="order-card">
+        <div class="oc-head">
+          ${storeLogoHtml(st)}
+          <div class="t"><h3>${esc(o.id)} · ${esc(st.name)}</h3>
+          <div class="meta">${o.participants.length} שכנים · ${esc(o.address)}</div></div>
+          ${timerPill(o)}
+        </div>
+        <div class="oc-body">
+          <div class="summary-card" style="padding:6px 14px">
+            ${Object.entries(picking).map(([k, q]) => `<div class="pick-row"><span>${esc(k)}</span><span class="q">${q}×</span></div>`).join("") || `<div class="pick-row"><span class="muted">אין פריטים</span></div>`}
+          </div>
+          ${next && o.status !== "shipped" ? `
+          <div class="status-actions">
+            <button class="btn btn-violet btn-sm" data-advance="${o.id}" ${!addressOk ? "disabled" : ""}>
+              קידום ל: ${STATUS_LABEL[next]}
+            </button>
+            ${!addressOk ? `<span class="tiny">נדרשת כתובת מסירה לפני טיפול</span>` : ""}
+          </div>` : ""}
+        </div>
+      </div>`;
+    }).join("") : `<div class="empty"><span class="big">🏬</span>אין הזמנות נעולות עדיין.<br><span class="tiny">כשסל ננעל — הוא מופיע כאן כהזמנה מרוכזת.</span></div>`}
+  `;
+  view().querySelectorAll("[data-advance]").forEach((b) => b.addEventListener("click", () => {
+    const o = orderOf(b.dataset.advance);
+    const next = STATUS_FLOW[STATUS_FLOW.indexOf(o.status) + 1];
+    if (!next) return;
+    o.status = next; save();
+    pulse("🏬", `${storeOf(o.store).name}: ההזמנה ${STATUS_LABEL[next]}`);
+    toast("סטטוס עודכן", `ההזמנה ${o.id} — ${STATUS_LABEL[next]}.`, "🏬");
+    renderStoreDash();
+  }));
 }
 
 /* ----- Profile ----- */
 function renderProfile() {
+  const mine = S.orders.filter((o) => isParticipant(o) && o.status === "shipped");
+  const saved = mine.reduce((sum, o) => sum + mySavings(o), 0);
   view().innerHTML = `
     <div class="profile-head">
-      <div class="profile-avatar">י</div>
-      <h1 style="font-size:21px;font-weight:900">יעל ישראלי</h1>
-      <div class="muted mt8">חבר/ה מאז יולי 2026</div>
-      <div class="trust-score">★ 4.9 · מוכר/ת מאומת/ת</div>
+      <div class="profile-avatar">${esc(S.user.name[0] || "ש")}</div>
+      <h1 style="font-size:21px;font-weight:900">${esc(S.user.name)}</h1>
+      <div class="muted mt8">${esc(BUILDING.address)} · ${esc(S.user.apt)}</div>
     </div>
     <div class="statgrid">
-      <div class="stat"><div class="n">12</div><div class="l">כרטיסים שנמכרו</div></div>
-      <div class="stat"><div class="n">8</div><div class="l">כרטיסים שנקנו</div></div>
-      <div class="stat"><div class="n">0</div><div class="l">מחלוקות</div></div>
+      <div class="stat"><div class="n">${mine.length}</div><div class="l">הזמנות שהושלמו</div></div>
+      <div class="stat"><div class="n">${nis(saved)}</div><div class="l">חסכתי במשלוחים</div></div>
+      <div class="stat"><div class="n">${BUILDING.neighbors}</div><div class="l">שכנים בבניין</div></div>
     </div>
-    <div class="section-title"><h2>רמת אימות</h2></div>
-    <div class="kyc-list">
-      <div class="kyc-item">📱 <span>טלפון ישראלי</span><span class="st ok">✓ מאומת</span></div>
-      <div class="kyc-item">🪪 <span>תעודת זהות</span><span class="st ok">✓ מאומת</span></div>
-      <div class="kyc-item">🏦 <span>חשבון בנק תואם ת"ז</span><span class="st ok">✓ מאומת</span></div>
-    </div>
+
+    <div class="section-title"><h2>החשבון שלי</h2></div>
+    <button class="list-item" id="row-edit">👤 <span>שם ודירה</span><span class="st mut">${esc(S.user.name)} · ${esc(S.user.apt)} ›</span></button>
+    <button class="list-item" id="row-payment">💳 <span>אמצעי תשלום</span><span class="st ok">Visa •••• 4242</span></button>
+    <a class="list-item" href="#/store-dash">🏬 <span>מסך החנות (דמו)</span><span class="st mut">›</span></a>
+
     <div class="section-title"><h2>התראות</h2></div>
-    <div class="kyc-list">
-      <div class="kyc-item">💬 <span>עדכוני מכירה ב-WhatsApp</span><span class="st ok">פעיל</span></div>
-      <div class="kyc-item">🔔 <span>התראות רשימת המתנה</span><span class="st ok">פעיל</span></div>
-      <div class="kyc-item">📉 <span>ירידות מחיר לאירועים שמורים</span><span class="st todo">כבוי</span></div>
-    </div>
-    <p class="tiny mt24" style="text-align:center">תוגדאו · מכירה במחיר הנקוב בלבד, בהתאם לסעיף 194א לחוק העונשין.<br>הכספים מוחזקים בנאמנות אצל ספק סליקה מורשה.</p>
+    <div class="toggle-row"><div><div>💬 עדכוני הזמנות ב-WhatsApp</div><div class="d">"הסל ננעל", "החבילה הגיעה"</div></div><div class="switch ${S.settings.whatsapp ? "on" : ""}" data-set="whatsapp"></div></div>
+    <div class="toggle-row"><div><div>🔔 הזמנה חדשה נפתחה בבניין</div><div class="d">כדי לקפוץ על משלוח מתפצל</div></div><div class="switch ${S.settings.waitlist ? "on" : ""}" data-set="waitlist"></div></div>
+    <div class="toggle-row"><div><div>🌐 שפה / Language</div><div class="d">עברית (English — בקרוב)</div></div><span class="st mut">עברית</span></div>
+
+    <div class="section-title"><h2>משפטי ופרטיות</h2></div>
+    <button class="list-item" id="row-terms">📄 <span>תנאי שימוש ומדיניות פרטיות</span><span class="st mut">›</span></button>
+    <button class="list-item" id="row-delete">🗑️ <span style="color:var(--coral)">מחיקת חשבון</span><span class="st mut">›</span></button>
+    <p class="tiny mt16" style="text-align:center">תוגדאו · התשלומים מוחזקים (אסקרו) עד אישור מסירה · Stripe Connect</p>
   `;
+  $("#row-edit").addEventListener("click", () => openOnboarding(true));
+  $("#row-payment").addEventListener("click", () => toast("אמצעי תשלום", "בגרסת הדמו הכרטיס קבוע. בגרסה המלאה: Stripe PaymentSheet.", "💳"));
+  $("#row-terms").addEventListener("click", () => toast("מסמכים", "תנאי שימוש ומדיניות פרטיות ייפתחו כאן בגרסה המלאה.", "📄"));
+  $("#row-delete").addEventListener("click", () => toast("מחיקת חשבון", "בגרסה המלאה: מחיקה מלאה דרך פונקציית delete-account.", "🗑️"));
+  view().querySelectorAll("[data-set]").forEach((sw) => sw.addEventListener("click", () => {
+    const k = sw.dataset.set;
+    S.settings[k] = !S.settings[k]; save();
+    sw.classList.toggle("on", S.settings[k]);
+  }));
 }
 
-/* ----- "How it works" modal ----- */
+/* ----- Onboarding ----- */
+function openOnboarding(editing = false) {
+  modal(`
+    <h2>${editing ? "עדכון פרטים" : "ברוכים הבאים לתוגדאו! 🏢"}</h2>
+    <p class="sub">${editing ? "" : "הבניין שלך כבר כאן — רק נגיד לשכנים מי הצטרף."}</p>
+    <div class="field"><label>איך קוראים לך?</label><input id="ob-name" value="${esc(S.user.name)}" /></div>
+    <div class="field"><label>דירה / קומה</label><input id="ob-apt" value="${esc(S.user.apt)}" /></div>
+    <div class="field"><label>הבניין</label><input value="${esc(BUILDING.address)}" disabled style="opacity:.6" /></div>
+    <button class="btn btn-lime" id="ob-save">${editing ? "שמירה" : "יאללה, נכנסים לבניין 🎉"}</button>
+  `);
+  $("#ob-save").addEventListener("click", () => {
+    const name = $("#ob-name").value.trim() || "שרון";
+    const apt = $("#ob-apt").value.trim() || "דירה 8";
+    S.user.name = name; S.user.apt = apt; S.onboarded = true; save();
+    $("#topbar-avatar").textContent = name[0];
+    closeModal();
+    if (!editing) toast(`ברוכים הבאים, ${name}! 👋`, "יש הזמנה פתוחה של דנה מ-H&M — שווה להציץ.", "🏢");
+    route();
+  });
+}
+
+/* ----- How it works ----- */
 function openHow() {
   modal(`
     <h2>איך תוגדאו עובד?</h2>
-    <p class="sub">מוכרים ביטחון, בשוק שבו האלטרנטיבה היא קבוצות פייסבוק.</p>
+    <p class="sub">משלוח אחד לבניין במקום שישה שליחים על אותו רחוב.</p>
     <div class="howit">
-      <div class="row"><div class="n">1</div><div><b>המוכר מעלה כרטיס</b><span>PDF נכנס לכספת מוצפנת. המחיר נעול עד לנקוב — ספסרות חסומה טכנית.</span></div></div>
-      <div class="row"><div class="n">2</div><div><b>הקונה משלם — הכסף בנאמנות</b><span>הכסף לא מגיע למוכר. הוא מוחזק עד יומיים אחרי האירוע.</span></div></div>
-      <div class="row"><div class="n">3</div><div><b>נכנסים למופע — ואז המוכר מקבל תשלום</b><span>סורבתם בשער? כפתור אחד באפליקציה — החזר מלא, כולל דמי השירות.</span></div></div>
+      <div class="row"><div class="n">1</div><div><b>שכן פותח סל משותף</b><span>בוחרים חנות, קובעים טיימר, ושולחים לינק לקבוצת הבניין.</span></div></div>
+      <div class="row"><div class="n">2</div><div><b>כולם מוסיפים — כל אחד את שלו</b><span>כל מצטרף מוזיל לכולם את המשלוח, ומעל ${nis(FREE_SHIPPING_GOAL)} — חינם. אפשר לסמן פריט כפרטי 🙈.</span></div></div>
+      <div class="row"><div class="n">3</div><div><b>משלמים רק על שלכם — באסקרו</b><span>התשלום מאושר אבל לא נתפס עד שהחבילה מגיעה ופותח ההזמנה מאשר מסירה. לא הגיעה — הכסף חוזר.</span></div></div>
     </div>
-    <div class="honesty">
-      <b>בכנות:</b> אף אפליקציה בעולם לא יכולה "לצלם רנטגן" לברקוד. מה שאנחנו כן יכולים: לוודא שהעוקץ לא משתלם. ובכרטיסים עם תג <b style="color:var(--teal)">מאומת ✔</b> — הברקוד הישן מבוטל וחדש מונפק על שמכם. שם, עוקץ הוא בלתי אפשרי פיזית.
-    </div>
-    <button class="btn btn-gold mt16" onclick="closeModal()">הבנתי, סגור</button>
+    <div class="honesty">🔒 <b>למה זה בטוח:</b> אף שכן לא נוגע בכסף של אחר. כל אחד משלם ישירות, הכסף מוחזק אצל ספק הסליקה (Stripe), ומשוחרר לחנות רק אחרי אישור מסירה.</div>
+    <button class="btn btn-lime mt16" onclick="closeModal()">הבנתי, סגור</button>
   `);
 }
+
+/* ---------------- Live simulation of the neighbors ---------------- */
+
+function startSim() {
+  const o = S.orders.find((x) => x.status === "collecting" && !timerEnded(x) && x.createdBy !== "me");
+  if (!o) return;
+  if (!S.simDone.aviJoin) {
+    setTimeout(() => {
+      const target = orderOf(o.id);
+      if (!target || target.status !== "collecting" || timerEnded(target)) return;
+      if (!isParticipant(target, "avi")) {
+        target.participants.push({ id: "avi" });
+        S.simDone.aviJoin = true;
+        pulse("👋", "אבי מקומה 3 הצטרף להזמנה — המשלוח ירד לכולם");
+        save();
+        toast("אבי הצטרף! 👋", `המשלוח המפוצל ירד ל-${freeShipping(target) ? "חינם" : nis(deliveryShare(target))} לשכן.`, "🎉");
+        route();
+      }
+    }, 9000);
+  }
+  if (!S.simDone.michalItem) {
+    setTimeout(() => {
+      const target = orderOf(o.id);
+      if (!target || target.status !== "collecting" || timerEnded(target)) return;
+      if (!isParticipant(target, "michal")) target.participants.push({ id: "michal" });
+      target.items.unshift({ id: "sim-" + now(), productId: "hm-linen", by: "michal", size: "M", color: "מרווה", qty: 1, private: false });
+      S.simDone.michalItem = true;
+      pulse("🛒", "מיכל מדירה 12 הוסיפה חולצת פשתן לסל");
+      save();
+      toast("הסל גדל! 🛒", `מיכל הוסיפה פריט — ${freeShipping(target) ? "משלוח חינם הושג! 🎉" : `עוד ${nis(Math.max(0, FREE_SHIPPING_GOAL - orderTotal(target)))} למשלוח חינם`}`, "🧺");
+      route();
+    }, 21000);
+  }
+}
+
+/* ---------------- Countdown ticker ---------------- */
+
+setInterval(() => {
+  document.querySelectorAll("[data-countdown]").forEach((el) => {
+    const o = orderOf(el.dataset.countdown);
+    if (!o) return;
+    const t = timerText(o);
+    if (t) el.textContent = `⏳ ${t}`;
+    else { el.textContent = "הטיימר הסתיים"; el.classList.add("ended"); }
+  });
+  document.querySelectorAll("[data-countdown-big]").forEach((el) => {
+    const o = orderOf(el.dataset.countdownBig);
+    if (!o) return;
+    el.textContent = timerText(o) ?? "00:00";
+  });
+}, 1000);
 
 /* ---------------- Router ---------------- */
 
 const routes = [
   { re: /^#?\/?$/, fn: renderHome, nav: "home" },
-  { re: /^#\/search$/, fn: renderSearch, nav: "search" },
-  { re: /^#\/event\/(.+)$/, fn: (m) => renderEvent(m[1]), nav: "home" },
-  { re: /^#\/checkout\/(.+)$/, fn: (m) => renderCheckout(m[1]), nav: "home" },
-  { re: /^#\/sell$/, fn: renderSell, nav: "sell" },
-  { re: /^#\/wallet$/, fn: renderWallet, nav: "wallet" },
+  { re: /^#\/stores$/, fn: renderStores, nav: "stores" },
+  { re: /^#\/store\/([\w-]+)$/, fn: (m) => renderStore(m[1]), nav: "stores" },
+  { re: /^#\/store-dash$/, fn: renderStoreDash, nav: "profile" },
+  { re: /^#\/new$/, fn: renderNew, nav: "new" },
+  { re: /^#\/order\/([\w-]+)$/, fn: (m) => renderOrder(m[1]), nav: "home" },
+  { re: /^#\/orders$/, fn: renderOrders, nav: "orders" },
+  { re: /^#\/join\/(\w+)$/, fn: (m) => renderJoin(m[1]), nav: "home" },
   { re: /^#\/profile$/, fn: renderProfile, nav: "profile" },
 ];
 
@@ -632,5 +965,11 @@ function route() {
 
 window.addEventListener("hashchange", route);
 document.getElementById("btn-how").addEventListener("click", openHow);
+$("#topbar-avatar").textContent = S.user.name[0] || "ש";
+$("#building-strip-text").textContent = `${BUILDING.address} · ${BUILDING.neighbors} שכנים בתוגדאו`;
 
-initSupabase().finally(route);
+initSupabase().finally(() => {
+  route();
+  if (!S.onboarded) setTimeout(() => openOnboarding(false), 600);
+  startSim();
+});

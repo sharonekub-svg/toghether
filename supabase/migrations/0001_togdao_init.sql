@@ -1,208 +1,251 @@
 -- ============================================================
 -- תוגדאו (Togdao) — initial schema
--- Safe face-value ticket resale marketplace for Israel.
--- Mirrors the data model from the game plan: users, events,
--- venues, listings, tickets (vault), orders (escrow), disputes,
--- waitlists, audit log.
+-- Group ordering for a building's neighbors: one shared cart per
+-- store, split delivery, escrow (manual-capture) payments.
+-- Mirrors the app's data model: buildings, profiles, stores,
+-- products, orders, participants, order_items, invites, payments.
 -- ============================================================
+
+create extension if not exists "pgcrypto";
+
+-- ---------- enums ----------
+do $$ begin
+  create type order_status as enum
+    ('collecting', 'accepted', 'packing', 'ready', 'shipped', 'cancelled');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type participant_status as enum ('joined', 'paid', 'refunded');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type payment_status as enum ('authorized', 'captured', 'refunded', 'failed');
+exception when duplicate_object then null; end $$;
+
+-- ---------- buildings: aggregate neighbors by physical address ----------
+create table public.buildings (
+  id uuid primary key default gen_random_uuid(),
+  city text not null,
+  street text not null,
+  building_number text not null,
+  created_at timestamptz not null default now(),
+  unique (city, street, building_number)
+);
 
 -- ---------- profiles (extends auth.users) ----------
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  display_name text,
+  display_name text not null,
   phone text,
-  kyc_status text not null default 'none'
-    check (kyc_status in ('none', 'phone', 'id_verified', 'bank_verified')),
-  id_number_hash text,
-  trust_score numeric(2,1) not null default 0 check (trust_score between 0 and 5),
-  sales_count int not null default 0,
-  banned_at timestamptz,
+  building_id uuid references public.buildings (id) on delete set null,
+  apt text,
   created_at timestamptz not null default now()
 );
+create index profiles_building_idx on public.profiles (building_id);
 
--- ---------- venues ----------
-create table public.venues (
-  id uuid primary key default gen_random_uuid(),
+-- ---------- stores (merchant catalog owners) ----------
+create table public.stores (
+  id text primary key,           -- 'hm' | 'zara' | 'amazon' | 'shufersal'
   name text not null,
-  city text,
-  lat double precision,
-  lng double precision
+  logo text not null,
+  accent text not null,
+  tagline text,
+  eta text,
+  delivery_fee int not null default 25,
+  free_shipping_goal int not null default 400
 );
 
--- ---------- events (catalog) ----------
-create table public.events (
-  id uuid primary key default gen_random_uuid(),
-  slug text unique,
-  title text not null,
-  emoji text default '🎫',
-  category text not null default 'concert'
-    check (category in ('concert', 'festival', 'sport', 'theater', 'standup', 'other')),
-  venue_id uuid references public.venues (id),
-  venue_name text,
-  starts_at timestamptz not null,
-  source text not null default 'manual'
-    check (source in ('eventim', 'leaan', 'tm', 'eventer', 'manual')),
-  face_price_min int not null check (face_price_min >= 0),
-  face_price_max int not null check (face_price_max >= face_price_min),
-  status text not null default 'on_sale'
-    check (status in ('on_sale', 'sold_out', 'cancelled')),
-  waitlist_count int not null default 0,
+-- ---------- products ----------
+create table public.products (
+  id text primary key,
+  store_id text not null references public.stores (id) on delete cascade,
+  name text not null,
+  emoji text default '🛍️',
+  category text,
+  price int not null check (price >= 0),
+  compare_at_price int,
+  sizes text[] not null default '{}',
+  colors text[] not null default '{}',
+  stock_status text not null default 'ok' check (stock_status in ('ok', 'low', 'last')),
   created_at timestamptz not null default now()
 );
+create index products_store_idx on public.products (store_id);
 
--- ---------- listings ----------
-create table public.listings (
-  id uuid primary key default gen_random_uuid(),
-  seller_id uuid not null references public.profiles (id),
-  event_id uuid not null references public.events (id),
-  seat_info text,
-  quantity int not null default 1 check (quantity between 1 and 10),
-  face_value int not null check (face_value > 0),
-  price int not null check (price > 0),
-  level text not null default 'safe' check (level in ('safe', 'verified')),
-  status text not null default 'draft'
-    check (status in ('draft', 'live', 'sold', 'delisted', 'flagged')),
-  created_at timestamptz not null default now(),
-  -- §194a: the platform physically prevents pricing above face value.
-  constraint price_at_most_face check (price <= face_value)
-);
-
--- ---------- tickets (vault metadata; files live in private storage) ----------
-create table public.tickets (
-  id uuid primary key default gen_random_uuid(),
-  listing_id uuid not null references public.listings (id) on delete cascade,
-  barcode_hash text not null,
-  vault_path text not null,
-  issuer text,
-  transferred_at timestamptz,
-  -- duplicate detection: the same barcode can never be listed twice.
-  constraint barcode_unique unique (barcode_hash)
-);
-
--- ---------- orders (escrow) ----------
+-- ---------- orders: one shared group cart ----------
 create table public.orders (
   id uuid primary key default gen_random_uuid(),
-  listing_id uuid not null references public.listings (id),
-  buyer_id uuid not null references public.profiles (id),
-  ticket_price int not null,
-  service_fee int not null,
-  psp_ref text,
-  escrow_status text not null default 'held'
-    check (escrow_status in ('held', 'released', 'refunded')),
-  payout_ref text,
+  code text not null unique,                 -- 4-digit join code
+  store_id text not null references public.stores (id),
+  building_id uuid references public.buildings (id),
+  created_by uuid not null references public.profiles (id),
+  status order_status not null default 'collecting',
+  delivery_address text not null default '',
+  closes_at timestamptz not null,            -- cart timer
+  delivery_confirmed_at timestamptz,         -- founder confirms receipt -> escrow release
   created_at timestamptz not null default now()
 );
+create index orders_store_idx on public.orders (store_id);
+create index orders_building_idx on public.orders (building_id);
+create index orders_status_idx on public.orders (status);
 
--- ---------- disputes ----------
-create table public.disputes (
+-- ---------- participants: membership per order ----------
+create table public.participants (
   id uuid primary key default gen_random_uuid(),
-  order_id uuid not null references public.orders (id),
-  type text not null default 'gate_refusal'
-    check (type in ('gate_refusal', 'not_received', 'other')),
-  lat double precision,
-  lng double precision,
-  resolution text check (resolution in ('refund', 'rejected')),
-  evidence jsonb not null default '{}'::jsonb,
-  created_at timestamptz not null default now()
-);
-
--- ---------- waitlists ----------
-create table public.waitlists (
-  id uuid primary key default gen_random_uuid(),
-  event_id uuid not null references public.events (id) on delete cascade,
+  order_id uuid not null references public.orders (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
-  created_at timestamptz not null default now(),
-  unique (event_id, user_id)
+  status participant_status not null default 'joined',
+  joined_at timestamptz not null default now(),
+  unique (order_id, user_id)
 );
+create index participants_order_idx on public.participants (order_id);
 
--- ---------- append-only audit log ----------
-create table public.audit_log (
-  id bigint generated always as identity primary key,
-  entity text not null,
-  entity_id uuid,
-  event text not null,
-  actor uuid,
-  data jsonb not null default '{}'::jsonb,
+-- ---------- order_items: each neighbor's picks in the shared cart ----------
+create table public.order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders (id) on delete cascade,
+  participant_id uuid not null references public.participants (id) on delete cascade,
+  product_id text not null references public.products (id),
+  size text,
+  color text,
+  quantity int not null default 1 check (quantity between 1 and 20),
+  is_private boolean not null default false,  -- neighbors see "a private item", not what
   created_at timestamptz not null default now()
 );
+create index order_items_order_idx on public.order_items (order_id);
+
+-- ---------- invites: shareable join tokens with TTL ----------
+create table public.invites (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders (id) on delete cascade,
+  token text not null unique,
+  created_by uuid not null references public.profiles (id),
+  expires_at timestamptz not null,
+  max_uses int not null default 20,
+  uses_count int not null default 0,
+  created_at timestamptz not null default now()
+);
+create index invites_order_idx on public.invites (order_id);
+
+-- ---------- payments: authoritative escrow ledger (webhook-owned) ----------
+create table public.payments (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.orders (id) on delete cascade,
+  participant_id uuid not null references public.participants (id) on delete cascade,
+  items_total int not null,                  -- this neighbor's items
+  delivery_share int not null,               -- their split of the delivery fee
+  amount int not null,                       -- total held
+  status payment_status not null default 'authorized',
+  stripe_payment_intent_id text,
+  authorized_at timestamptz not null default now(),
+  captured_at timestamptz,
+  refunded_at timestamptz,
+  unique (order_id, participant_id)
+);
+create index payments_order_idx on public.payments (order_id);
 
 -- ============================================================
 -- Row Level Security
 -- ============================================================
 
+alter table public.buildings enable row level security;
 alter table public.profiles enable row level security;
-alter table public.venues enable row level security;
-alter table public.events enable row level security;
-alter table public.listings enable row level security;
-alter table public.tickets enable row level security;
+alter table public.stores enable row level security;
+alter table public.products enable row level security;
 alter table public.orders enable row level security;
-alter table public.disputes enable row level security;
-alter table public.waitlists enable row level security;
-alter table public.audit_log enable row level security;
+alter table public.participants enable row level security;
+alter table public.order_items enable row level security;
+alter table public.invites enable row level security;
+alter table public.payments enable row level security;
 
--- Public catalog: anyone can browse events, venues and live listings.
-create policy "events are public" on public.events for select using (true);
-create policy "venues are public" on public.venues for select using (true);
-create policy "live listings are public" on public.listings
-  for select using (status = 'live' or seller_id = auth.uid());
+-- Catalog is public: anyone can browse stores + products.
+create policy "stores are public" on public.stores for select using (true);
+create policy "products are public" on public.products for select using (true);
 
--- Profiles: users see and edit their own profile.
+-- Profiles: users read/edit their own.
 create policy "own profile read" on public.profiles for select using (id = auth.uid());
+create policy "own profile write" on public.profiles for insert with check (id = auth.uid());
 create policy "own profile update" on public.profiles for update using (id = auth.uid());
-create policy "own profile insert" on public.profiles for insert with check (id = auth.uid());
 
--- Listings: sellers manage their own listings.
-create policy "insert own listing" on public.listings
-  for insert with check (seller_id = auth.uid());
-create policy "update own listing" on public.listings
-  for update using (seller_id = auth.uid());
+-- Buildings: neighbors in a building can see it.
+create policy "read own building" on public.buildings for select using (
+  exists (select 1 from public.profiles p where p.building_id = buildings.id and p.id = auth.uid())
+);
 
--- Tickets: the vault is invisible to clients. Only the seller pre-sale
--- and the buyer post-transfer (via signed URLs issued by an edge
--- function) touch files; row metadata is service-role only.
--- (no client policies on purpose)
+-- Helper: is the current user a participant in this order?
+create or replace function public.is_participant(o uuid)
+returns boolean language sql security definer stable as $$
+  select exists (
+    select 1 from public.participants
+    where order_id = o and user_id = auth.uid()
+  );
+$$;
 
--- Orders: buyer and the listing's seller can read their orders.
-create policy "buyer reads own orders" on public.orders
-  for select using (buyer_id = auth.uid());
-create policy "seller reads orders on own listings" on public.orders
-  for select using (exists (
-    select 1 from public.listings l
-    where l.id = listing_id and l.seller_id = auth.uid()
-  ));
+-- Orders: participants (and the creator) can read; creator can update.
+create policy "participants read order" on public.orders
+  for select using (created_by = auth.uid() or public.is_participant(id));
+create policy "create order" on public.orders
+  for insert with check (created_by = auth.uid());
+create policy "creator updates order" on public.orders
+  for update using (created_by = auth.uid());
 
--- Disputes: the buyer on the order can open and read a dispute.
-create policy "buyer opens dispute" on public.disputes
-  for insert with check (exists (
-    select 1 from public.orders o
-    where o.id = order_id and o.buyer_id = auth.uid()
-  ));
-create policy "buyer reads own dispute" on public.disputes
-  for select using (exists (
-    select 1 from public.orders o
-    where o.id = order_id and o.buyer_id = auth.uid()
-  ));
-
--- Waitlists: users manage their own spot.
-create policy "join waitlist" on public.waitlists
+-- Participants: you manage your own membership; co-members can read the roster.
+create policy "read co-participants" on public.participants
+  for select using (user_id = auth.uid() or public.is_participant(order_id));
+create policy "join order" on public.participants
   for insert with check (user_id = auth.uid());
-create policy "read own waitlist" on public.waitlists
-  for select using (user_id = auth.uid());
-create policy "leave waitlist" on public.waitlists
-  for delete using (user_id = auth.uid());
+
+-- Order items: participants of the order can read; you write your own.
+create policy "participants read items" on public.order_items
+  for select using (public.is_participant(order_id));
+create policy "add own item" on public.order_items
+  for insert with check (
+    exists (select 1 from public.participants pt
+            where pt.id = participant_id and pt.user_id = auth.uid())
+  );
+create policy "remove own item" on public.order_items
+  for delete using (
+    exists (select 1 from public.participants pt
+            where pt.id = participant_id and pt.user_id = auth.uid())
+  );
+
+-- Invites: order participants can read; creator can create.
+create policy "participants read invites" on public.invites
+  for select using (public.is_participant(order_id));
+create policy "creator makes invite" on public.invites
+  for insert with check (created_by = auth.uid());
+
+-- Payments: a neighbor sees only their own payment row.
+-- Mutations happen only via the Stripe webhook (service role) — no client write policy.
+create policy "read own payment" on public.payments
+  for select using (
+    exists (select 1 from public.participants pt
+            where pt.id = participant_id and pt.user_id = auth.uid())
+  );
 
 -- ============================================================
--- Seed: demo catalog (matches the app's demo data)
+-- Seed: demo stores + products (match the app's demo catalog)
 -- ============================================================
 
-insert into public.events
-  (slug, title, emoji, category, venue_name, starts_at, face_price_min, face_price_max, status, waitlist_count)
-values
-  ('omer-adam', 'עומר אדם', '🎤', 'concert', 'פארק הירקון, תל אביב', '2026-08-15 21:00+03', 350, 480, 'sold_out', 347),
-  ('noa-kirel', 'נועה קירל', '⭐', 'concert', 'היכל מנורה מבטחים, תל אביב', '2026-09-02 20:30+03', 280, 390, 'sold_out', 212),
-  ('shlomo-artzi', 'שלמה ארצי', '🎸', 'concert', 'האמפי קיסריה', '2026-08-25 20:00+03', 420, 420, 'sold_out', 158),
-  ('derby', 'מכבי ת"א – הפועל ת"א (דרבי)', '🏀', 'sport', 'היכל מנורה מבטחים', '2026-08-22 19:00+03', 120, 350, 'sold_out', 96),
-  ('tamar', 'פסטיבל תמר', '🌵', 'festival', 'מצדה, ים המלח', '2026-09-28 22:00+03', 260, 260, 'on_sale', 0),
-  ('infected', 'Infected Mushroom', '🍄', 'concert', 'לייב פארק, ראשון לציון', '2026-09-12 21:30+03', 290, 290, 'sold_out', 74),
-  ('hasson', 'שחר חסון', '🎙️', 'standup', 'זאפה, תל אביב', '2026-08-08 21:00+03', 160, 160, 'sold_out', 41),
-  ('cameri', 'מקבת — הקאמרי', '🎭', 'theater', 'תיאטרון הקאמרי, תל אביב', '2026-09-01 20:00+03', 190, 240, 'on_sale', 0);
+insert into public.stores (id, name, logo, accent, tagline, eta) values
+  ('hm',        'H&M',            'H&M', '#d4001a', 'אופנה יומיומית לכל הבניין',   'טיפול חנות 35–50 דק׳'),
+  ('zara',      'ZARA',           'ZARA','#16161a', 'ארון עירוני, משלוח אחד משותף', 'טיפול חנות 40–55 דק׳'),
+  ('amazon',    'Amazon',         'a',   '#ff9900', 'בסיסיים ומוצרי בית בלינק אחד', 'שילוח מהיר בסגנון Prime'),
+  ('shufersal', 'שופרסל Online',  'שופ', '#e4002b', 'הקניות של כולם, נהג אחד',      'חלון משלוח 60–90 דק׳');
+
+insert into public.products (id, store_id, name, emoji, category, price, compare_at_price, sizes, colors, stock_status) values
+  ('hm-linen', 'hm', 'חולצת פשתן מכופתרת', '👔', 'חולצות', 119, 139, '{XS,S,M,L,XL}', '{לבן,מרווה,תכלת}', 'ok'),
+  ('hm-jeans', 'hm', 'ג׳ינס Wide High', '👖', 'מכנסיים', 159, 189, '{34,36,38,40}', '{כחול,"שחור שטוף"}', 'low'),
+  ('hm-dress', 'hm', 'שמלת ריב מידי', '👗', 'שמלות', 129, 149, '{XS,S,M,L}', '{שחור,קרם,חום}', 'ok'),
+  ('hm-tee', 'hm', 'טי-שירט כותנה פרימיום', '👕', 'חולצות', 49, 59, '{S,M,L,XL}', '{לבן,שחור,נייבי}', 'ok'),
+  ('hm-bag', 'hm', 'תיק קרוסבודי מרופד', '👜', 'אקססוריז', 99, 119, '{"One size"}', '{שחור,בז׳,בורדו}', 'last'),
+  ('za-tee', 'zara', 'טי-שירט Heavy בייסיק', '👕', 'חולצות', 89, 109, '{S,M,L,XL}', '{שחור,לבן,טופ}', 'ok'),
+  ('za-pants', 'zara', 'מכנסיים מחויטים ישרים', '👖', 'מכנסיים', 229, 259, '{36,38,40,42}', '{שחור,פחם,חול}', 'low'),
+  ('za-slip', 'zara', 'שמלת סאטן סליפ', '👗', 'שמלות', 249, 279, '{XS,S,M,L}', '{שנהב,שחור,"ירוק עמוק"}', 'ok'),
+  ('za-jacket', 'zara', 'ז׳קט ג׳ינס קרופ', '🧥', 'חדש', 299, 329, '{S,M,L,XL}', '{"כחול ביניים",אקרו}', 'last'),
+  ('am-tee', 'amazon', 'טי יומיומי Essential', '👕', 'חולצות', 69, 79, '{S,M,L,XL}', '{שחור,לבן,אפור}', 'ok'),
+  ('am-hoodie', 'amazon', 'קפוצ׳ון פליז רך', '🧥', 'חדש', 129, 149, '{S,M,L,XL}', '{שחור,שיבולת,נייבי}', 'low'),
+  ('am-socks', 'amazon', 'שלישיית גרביים', '🧦', 'אקססוריז', 39, 49, '{"One size"}', '{לבן,שחור}', 'ok'),
+  ('sh-milk', 'shufersal', 'חלב 3% · שישייה', '🥛', 'חלב וביצים', 38, 42, '{שישייה}', '{רגיל}', 'ok'),
+  ('sh-eggs', 'shufersal', 'ביצים L · תבנית 12', '🥚', 'חלב וביצים', 16, 18, '{"12 יח׳"}', '{חופש}', 'ok'),
+  ('sh-veg', 'shufersal', 'סלסלת ירקות השבוע', '🥦', 'פירות וירקות', 74, 89, '{סלסלה}', '{עונתי}', 'low'),
+  ('sh-clean', 'shufersal', 'ערכת ניקוי לבית', '🧼', 'ניקיון', 59, 72, '{ערכה}', '{רגיל}', 'ok');
