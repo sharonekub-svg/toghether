@@ -77,8 +77,10 @@
 
       <figure class="hero-figure reveal">
         <div class="hero-photo">
+          <!-- מנסה קודם קובץ מקומי; אם אין, נטענת תמונת הלינקדאין; אחרת מונוגרמה -->
           <img src="assets/roey-hero.jpg" alt="עו״ד רועי קובובסקי" loading="eager"
-               onerror="this.style.display='none'" />
+               data-fallback="https://media.licdn.com/dms/image/v2/C4D03AQEOGrRD3HJB4A/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1516546319744?e=2147483647&amp;v=beta&amp;t=Tfmjurq1aBaALul8ncpc5-M7FAx7s1V3-oYRLQRxbyQ"
+               onerror="if(this.dataset.fallback){this.src=this.dataset.fallback;this.removeAttribute('data-fallback');}else{this.style.display='none';}" />
           <span class="hero-photo-mono" aria-hidden="true">ר״ק</span>
         </div>
         <figcaption class="hero-badge">
@@ -95,7 +97,9 @@
       <div class="about-portrait reveal">
         <div class="portrait-frame">
           <img class="portrait-img" src="assets/roey-portrait.jpg" alt="עו״ד רועי קובובסקי"
-               loading="lazy" onerror="this.style.display='none'" />
+               loading="lazy"
+               data-fallback="https://media.licdn.com/dms/image/v2/C4D03AQEOGrRD3HJB4A/profile-displayphoto-shrink_400_400/profile-displayphoto-shrink_400_400/0/1516546319744?e=2147483647&amp;v=beta&amp;t=Tfmjurq1aBaALul8ncpc5-M7FAx7s1V3-oYRLQRxbyQ"
+               onerror="if(this.dataset.fallback){this.src=this.dataset.fallback;this.removeAttribute('data-fallback');}else{this.style.display='none';}" />
           <div class="portrait-mono" aria-hidden="true">ר״ק</div>
         </div>
         <div class="portrait-caption">
