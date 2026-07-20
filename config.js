@@ -1,9 +1,11 @@
-/* תוגדאו — client configuration.
-   Fill in the Supabase project details to switch the app from demo
-   data to live data. The publishable (anon) key is safe to expose in
-   the browser — access is controlled by Row Level Security. */
+/* אתר עו"ד רועי קובובסקי — הגדרות לקוח.
+   המפתח הציבורי (publishable) בטוח לחשיפה בדפדפן — הגישה מוגבלת
+   באמצעות Row Level Security כך שניתן רק *להגיש* פנייה, לא לקרוא פניות. */
 
-window.TOGDAO_CONFIG = {
-  supabaseUrl: "",      // e.g. "https://xxxx.supabase.co"
-  supabaseAnonKey: "",  // "sb_publishable_..." key from the Supabase dashboard
+window.SITE_CONFIG = {
+  supabaseUrl: "https://zceoswqrvcqmjjohpeyo.supabase.co",
+  supabaseAnonKey: "sb_publishable_aWietdHty-i2IlGKGk421w_UH4X13q0",
+  // כתובת דוא"ל לגיבוי — אם שמירת הפנייה נכשלת, נפתח דוא"ל לכתובת הזו.
+  fallbackEmail: "sharonekub@gmail.com",
+  phone: "054-211391",
 };
