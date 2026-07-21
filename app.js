@@ -185,11 +185,12 @@
   }
 
   /* ---------- החלת פרטי קשר מתוך ההגדרות ---------- */
-  if (cfg.fallbackEmail) {
+  var displayEmail = cfg.contactEmail || cfg.fallbackEmail;
+  if (displayEmail) {
     var emailLink = document.getElementById("emailLink");
     if (emailLink) {
-      emailLink.textContent = cfg.fallbackEmail;
-      emailLink.href = "mailto:" + cfg.fallbackEmail;
+      emailLink.textContent = displayEmail;
+      emailLink.href = "mailto:" + displayEmail;
     }
   }
 
