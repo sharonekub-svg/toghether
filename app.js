@@ -192,4 +192,16 @@
       emailLink.href = "mailto:" + cfg.fallbackEmail;
     }
   }
+
+  /* ---------- FAQ: אקורדיון (רק אחד פתוח בכל פעם) ---------- */
+  var faqItems = document.querySelectorAll(".faq-item");
+  faqItems.forEach(function (item) {
+    item.addEventListener("toggle", function () {
+      if (item.open) {
+        faqItems.forEach(function (other) {
+          if (other !== item) other.open = false;
+        });
+      }
+    });
+  });
 })();
