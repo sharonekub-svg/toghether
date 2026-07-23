@@ -34,20 +34,37 @@
     });
   }
 
-  /* ---------- Reveal on scroll ---------- */
-  var revealEls = document.querySelectorAll(".reveal");
-  if ("IntersectionObserver" in window) {
+  /* ---------- אנימציות גלילה דו-כיווניות ----------
+     האלמנטים עולים כשנכנסים למסך ויורדים כשיוצאים —
+     כך האנימציה חוזרת גם בגלילה למעלה וגם למטה. */
+  var animEls = document.querySelectorAll(".reveal, .rise");
+  var prefersReduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if ("IntersectionObserver" in window && !prefersReduce) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
-        if (e.isIntersecting) {
-          e.target.classList.add("in");
-          io.unobserve(e.target);
-        }
+        e.target.classList.toggle("in", e.isIntersecting);
       });
-    }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
-    revealEls.forEach(function (el) { io.observe(el); });
+    }, { threshold: 0.12, rootMargin: "0px 0px -6% 0px" });
+    animEls.forEach(function (el) { io.observe(el); });
   } else {
-    revealEls.forEach(function (el) { el.classList.add("in"); });
+    animEls.forEach(function (el) { el.classList.add("in"); });
+  }
+
+  /* ---------- פרלקסה עדינה על תמונת הפרופיל ---------- */
+  var profileImg = document.querySelector(".profile-img");
+  if (profileImg && !prefersReduce) {
+    var parallaxTick = false;
+    var applyParallax = function () {
+      parallaxTick = false;
+      var frame = profileImg.parentElement.getBoundingClientRect();
+      var mid = frame.top + frame.height / 2 - window.innerHeight / 2;
+      var y = Math.max(-18, Math.min(18, -mid * 0.05));
+      profileImg.style.transform = "translateY(" + y + "px) scale(1.08)";
+    };
+    window.addEventListener("scroll", function () {
+      if (!parallaxTick) { parallaxTick = true; requestAnimationFrame(applyParallax); }
+    }, { passive: true });
+    applyParallax();
   }
 
   /* ---------- טאבים בטופס (כללי / מועמדות) ---------- */
@@ -178,7 +195,29 @@
   if (displayEmail) {
     document.querySelectorAll("[data-email]").forEach(function (el) {
       el.href = "mailto:" + displayEmail;
-      if (el.id === "emailLink") el.textContent = displayEmail;
+      if (el.id === "emailLink" || el.classList.contains("profile-link")) {
+        if (el.id !== "vcardLink") el.textContent = displayEmail;
+      }
     });
+  }
+
+  /* ---------- v-card להורדה (נבנה מפרטי ההגדרות) ---------- */
+  var vcardLink = document.getElementById("vcardLink");
+  if (vcardLink) {
+    var tel = (cfg.phone || "").replace(/\D/g, "").replace(/^0/, "+972");
+    var vcf = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      "N:קובובסקי;רועי;;עו\"ד;",
+      "FN:עו\"ד רועי קובובסקי",
+      "ORG:רועי קובובסקי, עורכי דין",
+      "TITLE:עורך דין",
+      tel ? "TEL;TYPE=CELL:" + tel : "",
+      displayEmail ? "EMAIL:" + displayEmail : "",
+      "ADR:;;גני תקווה;;;;Israel",
+      "END:VCARD"
+    ].filter(Boolean).join("\r\n");
+    vcardLink.href = "data:text/vcard;charset=utf-8," + encodeURIComponent(vcf);
+    vcardLink.setAttribute("download", "roy-kubovsky.vcf");
   }
 })();
