@@ -77,17 +77,6 @@
     t.addEventListener("click", function () { setKind(t.dataset.kind); });
   });
 
-  // מעבר ישיר לטאב מועמדות מלחצן "הגשת מועמדות"
-  document.querySelectorAll('[data-prefill="job"]').forEach(function (el) {
-    el.addEventListener("click", function () {
-      setKind("job");
-      setTimeout(function () {
-        var name = document.getElementById("f-name");
-        if (name) name.focus();
-      }, 500);
-    });
-  });
-
   /* ---------- לקוח Supabase (עצל) ---------- */
   var supa = null;
   function getSupa() {
@@ -185,11 +174,11 @@
   }
 
   /* ---------- החלת פרטי קשר מתוך ההגדרות ---------- */
-  if (cfg.fallbackEmail) {
-    var emailLink = document.getElementById("emailLink");
-    if (emailLink) {
-      emailLink.textContent = cfg.fallbackEmail;
-      emailLink.href = "mailto:" + cfg.fallbackEmail;
-    }
+  var displayEmail = cfg.contactEmail || cfg.fallbackEmail;
+  if (displayEmail) {
+    document.querySelectorAll("[data-email]").forEach(function (el) {
+      el.href = "mailto:" + displayEmail;
+      if (el.id === "emailLink") el.textContent = displayEmail;
+    });
   }
 })();
