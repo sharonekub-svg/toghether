@@ -214,7 +214,7 @@
       "TITLE:עורך דין",
       tel ? "TEL;TYPE=CELL:" + tel : "",
       displayEmail ? "EMAIL:" + displayEmail : "",
-      "ADR:;;גני תקווה;;;;Israel",
+      "ADR:;;מגדלי עזריאלי 1 (המגדל העגול) קומה 36;תל אביב-יפו;;6702101;Israel",
       "END:VCARD"
     ].filter(Boolean).join("\r\n");
     vcardLink.href = "data:text/vcard;charset=utf-8," + encodeURIComponent(vcf);
