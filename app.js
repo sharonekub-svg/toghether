@@ -11,6 +11,7 @@
   /* ---------- כותרת "נדבקת" בגלילה ---------- */
   var header = document.getElementById("siteHeader");
   function onScroll() {
+    if (!header) return;
     if (window.scrollY > 24) header.classList.add("scrolled");
     else header.classList.remove("scrolled");
   }
@@ -21,6 +22,7 @@
   var toggle = document.getElementById("navToggle");
   var links = document.querySelector(".nav-links");
   function closeMenu() {
+    if (!links || !toggle) return;
     links.classList.remove("open");
     toggle.setAttribute("aria-expanded", "false");
   }
@@ -39,10 +41,7 @@
   if ("IntersectionObserver" in window) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
-        if (e.isIntersecting) {
-          e.target.classList.add("in");
-          io.unobserve(e.target);
-        }
+        if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
     revealEls.forEach(function (el) { io.observe(el); });
@@ -50,41 +49,11 @@
     revealEls.forEach(function (el) { el.classList.add("in"); });
   }
 
-  /* ---------- טאבים בטופס (כללי / מועמדות) ---------- */
-  var form = document.getElementById("leadForm");
-  var tabs = document.querySelectorAll(".form-tab");
-  var currentKind = "general";
-
-  function setKind(kind) {
-    currentKind = kind;
-    tabs.forEach(function (t) {
-      var active = t.dataset.kind === kind;
-      t.classList.toggle("is-active", active);
-      t.setAttribute("aria-selected", active ? "true" : "false");
-    });
-    document.querySelectorAll("[data-when]").forEach(function (el) {
-      var show = el.getAttribute("data-when") === kind;
-      el.hidden = !show;
-      // הפעלת/כיבוי required בהתאם לטאב הפעיל
-      var fit = el.querySelector("#f-fit");
-      if (fit) fit.required = (kind === "job") && show;
-    });
-    // עדכון תווית הכפתור
-    var btn = document.getElementById("submitBtn");
-    if (btn) btn.textContent = kind === "job" ? "שליחת מועמדות" : "שליחת הפנייה";
-  }
-  tabs.forEach(function (t) {
-    t.addEventListener("click", function () { setKind(t.dataset.kind); });
-  });
-
-  // מעבר ישיר לטאב מועמדות מלחצן "הגשת מועמדות"
-  document.querySelectorAll('[data-prefill="job"]').forEach(function (el) {
-    el.addEventListener("click", function () {
-      setKind("job");
-      setTimeout(function () {
-        var name = document.getElementById("f-name");
-        if (name) name.focus();
-      }, 500);
+  /* ---------- FAQ: אקורדיון (רק אחד פתוח בכל פעם) ---------- */
+  var faqItems = document.querySelectorAll(".faq-item");
+  faqItems.forEach(function (item) {
+    item.addEventListener("toggle", function () {
+      if (item.open) faqItems.forEach(function (o) { if (o !== item) o.open = false; });
     });
   });
 
@@ -97,27 +66,25 @@
     return supa;
   }
 
-  /* ---------- שליחת הטופס ---------- */
+  /* ---------- שליחת טופס יצירת קשר ---------- */
+  var form = document.getElementById("leadForm");
   var statusEl = document.getElementById("formStatus");
   var submitBtn = document.getElementById("submitBtn");
 
   function setStatus(msg, kind) {
+    if (!statusEl) return;
     statusEl.textContent = msg;
     statusEl.className = "form-status" + (kind ? " " + kind : "");
   }
 
   function mailtoFallback(payload) {
-    var subject = payload.kind === "job"
-      ? "הגשת מועמדות לעבודה — " + payload.full_name
-      : "פנייה מהאתר — " + payload.full_name;
+    var subject = "פנייה מהאתר — " + payload.full_name;
     var body =
       "שם: " + payload.full_name + "\n" +
       "אימייל: " + payload.email + "\n" +
       "טלפון: " + (payload.phone || "-") + "\n\n" +
-      (payload.kind === "job"
-        ? "למה מתאים/ה לעבודה:\n" + (payload.fit_reason || "")
-        : "הודעה:\n" + (payload.message || ""));
-    var to = cfg.fallbackEmail || "";
+      "הודעה:\n" + (payload.message || "");
+    var to = cfg.fallbackEmail || cfg.contactEmail || "";
     window.location.href =
       "mailto:" + to +
       "?subject=" + encodeURIComponent(subject) +
@@ -132,35 +99,29 @@
         full_name: (form.full_name.value || "").trim(),
         email: (form.email.value || "").trim(),
         phone: (form.phone.value || "").trim() || null,
-        kind: currentKind,
-        message: currentKind === "general" ? (form.message.value || "").trim() || null : null,
-        fit_reason: currentKind === "job" ? (form.fit_reason.value || "").trim() || null : null,
+        kind: "general",
+        message: (form.message.value || "").trim() || null,
         user_agent: navigator.userAgent,
       };
 
-      // בדיקות בסיסיות
       if (!payload.full_name) { setStatus("נא למלא שם מלא.", "err"); form.full_name.focus(); return; }
       if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
         setStatus("נא למלא כתובת אימייל תקינה.", "err"); form.email.focus(); return;
       }
-      if (currentKind === "job" && !payload.fit_reason) {
-        setStatus("נא לפרט למה אתם מתאימים לעבודה.", "err"); form.fit_reason.focus(); return;
-      }
 
-      submitBtn.disabled = true;
+      if (submitBtn) submitBtn.disabled = true;
       setStatus("שולח…", "");
 
       var client = getSupa();
       if (!client) {
-        // אין חיבור למסד הנתונים — נעבור לשליחת דוא"ל
         setStatus("פותח את תוכנת הדוא״ל שלכם…", "ok");
-        submitBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
         mailtoFallback(payload);
         return;
       }
 
       client.from("roey_leads").insert(payload).then(function (res) {
-        submitBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
         if (res.error) {
           console.error(res.error);
           setStatus("אירעה תקלה בשמירה — פותח דוא״ל לשליחה ידנית…", "err");
@@ -168,41 +129,22 @@
           return;
         }
         form.reset();
-        setKind(currentKind); // שמירה על הטאב הפעיל
-        setStatus(
-          currentKind === "job"
-            ? "המועמדות נשלחה בהצלחה! נחזור אליכם בהקדם."
-            : "הפנייה נשלחה בהצלחה! נחזור אליכם בהקדם.",
-          "ok"
-        );
+        setStatus("הפנייה נשלחה בהצלחה! אחזור אליכם בהקדם.", "ok");
       }).catch(function (err) {
         console.error(err);
-        submitBtn.disabled = false;
+        if (submitBtn) submitBtn.disabled = false;
         setStatus("אירעה תקלה — פותח דוא״ל לשליחה ידנית…", "err");
         setTimeout(function () { mailtoFallback(payload); }, 900);
       });
     });
   }
 
-  /* ---------- החלת פרטי קשר מתוך ההגדרות ---------- */
+  /* ---------- הצגת הדוא"ל מתוך ההגדרות ---------- */
   var displayEmail = cfg.contactEmail || cfg.fallbackEmail;
   if (displayEmail) {
-    var emailLink = document.getElementById("emailLink");
-    if (emailLink) {
-      emailLink.textContent = displayEmail;
-      emailLink.href = "mailto:" + displayEmail;
-    }
-  }
-
-  /* ---------- FAQ: אקורדיון (רק אחד פתוח בכל פעם) ---------- */
-  var faqItems = document.querySelectorAll(".faq-item");
-  faqItems.forEach(function (item) {
-    item.addEventListener("toggle", function () {
-      if (item.open) {
-        faqItems.forEach(function (other) {
-          if (other !== item) other.open = false;
-        });
-      }
+    document.querySelectorAll(".js-email").forEach(function (el) {
+      el.textContent = displayEmail;
+      el.href = "mailto:" + displayEmail;
     });
-  });
+  }
 })();
