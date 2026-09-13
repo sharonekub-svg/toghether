@@ -1,55 +1,136 @@
-/* אתר עו"ד רועי קובובסקי — אינטראקציות בצד הלקוח */
+/* אתר עו"ד רועי קובובסקי — אינטראקציות, תפריט מסך מלא ואנימציות */
 (function () {
   "use strict";
 
   var cfg = window.SITE_CONFIG || {};
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ---------- שנה נוכחית בפוטר ---------- */
   var yearEl = document.getElementById("year");
   if (yearEl) yearEl.textContent = new Date().getFullYear();
 
-  /* ---------- כותרת "נדבקת" בגלילה ---------- */
+  /* ---------- כותרת "נדבקת" + פס התקדמות גלילה ---------- */
   var header = document.getElementById("siteHeader");
+  var progress = document.getElementById("scrollProgress");
+  var lastY = window.scrollY;
+
   function onScroll() {
-    if (!header) return;
-    if (window.scrollY > 24) header.classList.add("scrolled");
-    else header.classList.remove("scrolled");
+    var y = window.scrollY;
+    if (header) header.classList.toggle("scrolled", y > 24);
+    if (header) header.classList.toggle("hide", y > 420 && y > lastY && !document.body.classList.contains("menu-open"));
+    if (progress) {
+      var h = document.documentElement.scrollHeight - window.innerHeight;
+      progress.style.transform = "scaleX(" + (h > 0 ? Math.min(y / h, 1) : 0) + ")";
+    }
+    lastY = y;
   }
   window.addEventListener("scroll", onScroll, { passive: true });
   onScroll();
 
-  /* ---------- תפריט מובייל ---------- */
-  var toggle = document.getElementById("navToggle");
-  var links = document.querySelector(".nav-links");
-  function closeMenu() {
-    if (!links || !toggle) return;
-    links.classList.remove("open");
-    toggle.setAttribute("aria-expanded", "false");
+  /* ---------- תפריט מסך מלא ---------- */
+  var menuBtn = document.getElementById("menuBtn");
+  var overlay = document.getElementById("overlayMenu");
+
+  function setMenu(open) {
+    if (!overlay || !menuBtn) return;
+    document.body.classList.toggle("menu-open", open);
+    overlay.classList.toggle("open", open);
+    overlay.setAttribute("aria-hidden", open ? "false" : "true");
+    menuBtn.setAttribute("aria-expanded", open ? "true" : "false");
+    menuBtn.setAttribute("aria-label", open ? "סגירת תפריט" : "פתיחת תפריט");
+    if (open) {
+      var first = overlay.querySelector(".overlay-nav a");
+      if (first) setTimeout(function () { first.focus(); }, 420);
+    } else {
+      menuBtn.focus();
+    }
   }
-  if (toggle && links) {
-    toggle.addEventListener("click", function () {
-      var open = links.classList.toggle("open");
-      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+
+  if (menuBtn && overlay) {
+    menuBtn.addEventListener("click", function () {
+      setMenu(!document.body.classList.contains("menu-open"));
     });
-    links.querySelectorAll("a").forEach(function (a) {
-      a.addEventListener("click", closeMenu);
+    overlay.querySelectorAll("a").forEach(function (a) {
+      a.addEventListener("click", function () { setMenu(false); });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && document.body.classList.contains("menu-open")) setMenu(false);
     });
   }
 
-  /* ---------- Reveal on scroll ---------- */
-  var revealEls = document.querySelectorAll(".reveal");
-  if ("IntersectionObserver" in window) {
+  /* ---------- הכנה לאנימציות: עטיפת כותרות ומדרוג ---------- */
+  // כותרות עם חשיפת "מסכה" — עוטפים את התוכן בשכבה פנימית
+  document.querySelectorAll(".rv-mask").forEach(function (el) {
+    var inner = document.createElement("span");
+    inner.className = "rv-mask-in";
+    while (el.firstChild) inner.appendChild(el.firstChild);
+    el.appendChild(inner);
+  });
+
+  // מדרוג (stagger) — כל ילד מקבל אינדקס להשהיה
+  document.querySelectorAll("[data-stagger]").forEach(function (box) {
+    var i = 0;
+    Array.prototype.forEach.call(box.children, function (child) {
+      child.style.setProperty("--i", i);
+      if (!child.classList.contains("reveal") && !child.classList.contains("rv-sep")) {
+        child.classList.add("reveal");
+      }
+      i++;
+    });
+  });
+
+  /* ---------- חשיפה בגלילה ---------- */
+  var animTargets = document.querySelectorAll(".reveal, .rv-mask, .rv-img");
+  if ("IntersectionObserver" in window && !reduced) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (e) {
         if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -8% 0px" });
-    revealEls.forEach(function (el) { io.observe(el); });
+    animTargets.forEach(function (el) { io.observe(el); });
   } else {
-    revealEls.forEach(function (el) { el.classList.add("in"); });
+    animTargets.forEach(function (el) { el.classList.add("in"); });
   }
 
-  /* ---------- FAQ: אקורדיון (רק אחד פתוח בכל פעם) ---------- */
+  /* ---------- אנימציית הפתיחה של ה-Hero ---------- */
+  var hero = document.querySelector(".hero");
+  function playHero() { if (hero) hero.classList.add("in"); }
+  if (reduced) { playHero(); }
+  else if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { setTimeout(playHero, 60); });
+    setTimeout(playHero, 1200); // רשת ביטחון
+  } else {
+    window.addEventListener("load", playHero);
+    setTimeout(playHero, 1200);
+  }
+
+  /* ---------- פרלקסה עדינה ---------- */
+  var pxEls = [];
+  var heroFig = document.querySelector(".hero-figure");
+  if (heroFig) pxEls.push({ el: heroFig, speed: -0.07 });
+  var portrait = document.querySelector(".portrait-img");
+  if (portrait) pxEls.push({ el: portrait, speed: 0.05 });
+
+  if (pxEls.length && !reduced) {
+    var ticking = false;
+    var update = function () {
+      var vh = window.innerHeight;
+      pxEls.forEach(function (p) {
+        var r = p.el.getBoundingClientRect();
+        if (r.bottom < -200 || r.top > vh + 200) return;
+        var mid = r.top + r.height / 2 - vh / 2;
+        p.el.style.setProperty("--py", (mid * p.speed).toFixed(2) + "px");
+      });
+      ticking = false;
+    };
+    window.addEventListener("scroll", function () {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    }, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+  }
+
+  /* ---------- FAQ: אקורדיון ---------- */
   var faqItems = document.querySelectorAll(".faq-item");
   faqItems.forEach(function (item) {
     item.addEventListener("toggle", function () {
@@ -66,18 +147,17 @@
     return supa;
   }
 
-  /* ---------- שליחת טופס יצירת קשר ---------- */
+  /* ---------- טופס יצירת קשר ---------- */
   var form = document.getElementById("leadForm");
   var statusEl = document.getElementById("formStatus");
   var submitBtn = document.getElementById("submitBtn");
+  var TARGET_EMAIL = cfg.formEmail || cfg.fallbackEmail || cfg.contactEmail || "";
 
   function setStatus(msg, kind) {
     if (!statusEl) return;
     statusEl.textContent = msg;
     statusEl.className = "form-status" + (kind ? " " + kind : "");
   }
-
-  var TARGET_EMAIL = cfg.formEmail || cfg.fallbackEmail || cfg.contactEmail || "";
 
   function mailtoFallback(payload) {
     var subject = "פנייה מהאתר — " + payload.full_name;
@@ -92,7 +172,6 @@
       "&body=" + encodeURIComponent(body);
   }
 
-  // שליחת הפנייה בדוא"ל אל הכתובת שהוגדרה (באמצעות FormSubmit).
   function emailForm(payload) {
     return fetch("https://formsubmit.co/ajax/" + encodeURIComponent(TARGET_EMAIL), {
       method: "POST",
@@ -109,7 +188,6 @@
     }).then(function (r) { if (!r.ok) throw new Error("http " + r.status); return r.json(); });
   }
 
-  // שמירה מקבילה במסד הנתונים (גיבוי, best-effort).
   function storeLead(payload) {
     var client = getSupa();
     if (!client) return;
@@ -136,8 +214,7 @@
 
       if (submitBtn) submitBtn.disabled = true;
       setStatus("שולח…", "");
-
-      storeLead(payload); // גיבוי במסד הנתונים
+      storeLead(payload);
 
       emailForm(payload).then(function () {
         if (submitBtn) submitBtn.disabled = false;
