@@ -7,7 +7,9 @@ window.SITE_CONFIG = {
   supabaseAnonKey: "sb_publishable_aWietdHty-i2IlGKGk421w_UH4X13q0",
   // הדוא"ל המקצועי שמוצג באתר.
   contactEmail: "roy.kubovsky@dle.co.il",
-  // דוא"ל לגיבוי — אם שמירת הפנייה במסד הנתונים נכשלת, נפתח דוא"ל לכתובת זו.
-  fallbackEmail: "sharonekub@gmail.com",
+  // הכתובת שאליה נשלחות פניות הטופס (במייל).
+  formEmail: "Roy@kubovsky.co.il",
+  // דוא"ל לגיבוי — אם השליחה נכשלת, נפתח דוא"ל לכתובת זו.
+  fallbackEmail: "Roy@kubovsky.co.il",
   phone: "054-2113091",
 };

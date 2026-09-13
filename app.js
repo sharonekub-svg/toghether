@@ -77,6 +77,8 @@
     statusEl.className = "form-status" + (kind ? " " + kind : "");
   }
 
+  var TARGET_EMAIL = cfg.formEmail || cfg.fallbackEmail || cfg.contactEmail || "";
+
   function mailtoFallback(payload) {
     var subject = "פנייה מהאתר — " + payload.full_name;
     var body =
@@ -84,11 +86,34 @@
       "אימייל: " + payload.email + "\n" +
       "טלפון: " + (payload.phone || "-") + "\n\n" +
       "הודעה:\n" + (payload.message || "");
-    var to = cfg.fallbackEmail || cfg.contactEmail || "";
     window.location.href =
-      "mailto:" + to +
+      "mailto:" + TARGET_EMAIL +
       "?subject=" + encodeURIComponent(subject) +
       "&body=" + encodeURIComponent(body);
+  }
+
+  // שליחת הפנייה בדוא"ל אל הכתובת שהוגדרה (באמצעות FormSubmit).
+  function emailForm(payload) {
+    return fetch("https://formsubmit.co/ajax/" + encodeURIComponent(TARGET_EMAIL), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({
+        "שם": payload.full_name,
+        "אימייל": payload.email,
+        "טלפון": payload.phone || "-",
+        "הודעה": payload.message || "",
+        "_subject": "פנייה חדשה מהאתר — " + payload.full_name,
+        "_template": "table",
+        "_captcha": "false"
+      })
+    }).then(function (r) { if (!r.ok) throw new Error("http " + r.status); return r.json(); });
+  }
+
+  // שמירה מקבילה במסד הנתונים (גיבוי, best-effort).
+  function storeLead(payload) {
+    var client = getSupa();
+    if (!client) return;
+    try { client.from("roey_leads").insert(payload).then(function () {}, function () {}); } catch (e) {}
   }
 
   if (form) {
@@ -112,29 +137,17 @@
       if (submitBtn) submitBtn.disabled = true;
       setStatus("שולח…", "");
 
-      var client = getSupa();
-      if (!client) {
-        setStatus("פותח את תוכנת הדוא״ל שלכם…", "ok");
-        if (submitBtn) submitBtn.disabled = false;
-        mailtoFallback(payload);
-        return;
-      }
+      storeLead(payload); // גיבוי במסד הנתונים
 
-      client.from("roey_leads").insert(payload).then(function (res) {
+      emailForm(payload).then(function () {
         if (submitBtn) submitBtn.disabled = false;
-        if (res.error) {
-          console.error(res.error);
-          setStatus("אירעה תקלה בשמירה — פותח דוא״ל לשליחה ידנית…", "err");
-          setTimeout(function () { mailtoFallback(payload); }, 900);
-          return;
-        }
         form.reset();
         setStatus("הפנייה נשלחה בהצלחה! אחזור אליכם בהקדם.", "ok");
       }).catch(function (err) {
         console.error(err);
         if (submitBtn) submitBtn.disabled = false;
-        setStatus("אירעה תקלה — פותח דוא״ל לשליחה ידנית…", "err");
-        setTimeout(function () { mailtoFallback(payload); }, 900);
+        setStatus("פותח את תוכנת הדוא״ל שלכם להשלמת השליחה…", "ok");
+        setTimeout(function () { mailtoFallback(payload); }, 700);
       });
     });
   }
